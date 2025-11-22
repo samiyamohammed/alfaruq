@@ -1,52 +1,57 @@
 name: al_faruk_app
 description: Al Faruk Multimedia Production App.
-publish_to: 'none' 
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  
-  # Utility Packages
-  google_fonts: ^6.1.0         # For custom fonts like 'Inter'
+
+  # --- CORE ARCHITECTURE PACKAGES ---
+  flutter_riverpod: ^2.5.1
+  dio: ^5.4.1
+  provider: ^6.1.5+1
+  flutter_secure_storage: ^9.0.0
+
+  # --- UTILITY PACKAGES ---
+  google_fonts: ^6.1.0
   permission_handler: ^11.3.1
-  # Feature Packages
-  pinput: ^3.0.1               # For the OTP screen
-  #youtube_player_flutter: ^9.0.1 # For the video player
-  flutter_qiblah: ^3.1.0    # For Qiblah direction feature
+  intl: ^0.20.2 # Note: Version conflict resolved, using a compatible version.
+  flutter_dotenv: ^5.1.0
+  shared_preferences: ^2.2.3
+  flutter_localizations_plus: ^0.3.2
+  url_launcher: ^6.3.2
+  uni_links: ^0.5.1 # ADDED: For deep linking / catching the redirect
+
+  # --- FEATURE PACKAGES ---
+  pinput: ^3.0.1
+  flutter_qiblah: ^3.1.0
   geolocator: ^13.0.4
   geocoding: ^2.1.0
   adhan: ^2.0.0+1
-  intl: ^0.20.2
-  flutter_dotenv: ^5.1.0
-  http: ^1.2.0
   youtube_player_iframe: ^5.1.2
   audioplayers: ^6.0.0
-  shared_preferences: ^2.2.3
-  provider: ^6.1.2 
-  flutter_localizations_plus: ^0.3.2
+  app_links: ^6.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
 
-
 flutter:
-
   generate: true
-
   uses-material-design: true
 
   # Register asset folder
   assets:
-    - .env
-    - assets/images/logo.png 
+    # - .env
+    - assets/
+    - assets/images/logo.png
     - assets/images/logo_symbol.png
     - assets/images/thumb_islamic_art.png
     - assets/images/thumb_baghdad.png

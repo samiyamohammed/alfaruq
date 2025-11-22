@@ -16,15 +16,33 @@ class HomePage extends StatelessWidget {
   );
 
   static const _newTrailers = [
-    ContentItem(id: '2', title: 'The Golden Age', thumbnailUrl: 'assets/images/thumb_baghdad.png'),
-    ContentItem(id: '3', title: 'Art of Calligraphy', thumbnailUrl: 'assets/images/thumb_calligraphy.png'),
-    ContentItem(id: '1', title: 'Islamic Art', thumbnailUrl: 'assets/images/thumb_islamic_art.png'),
+    ContentItem(
+        id: '2',
+        title: 'The Golden Age',
+        thumbnailUrl: 'assets/images/thumb_baghdad.png'),
+    ContentItem(
+        id: '3',
+        title: 'Art of Calligraphy',
+        thumbnailUrl: 'assets/images/thumb_calligraphy.png'),
+    ContentItem(
+        id: '1',
+        title: 'Islamic Art',
+        thumbnailUrl: 'assets/images/thumb_islamic_art.png'),
   ];
 
   static const _popularMovies = [
-    ContentItem(id: '3', title: 'Art of Calligraphy', thumbnailUrl: 'assets/images/thumb_calligraphy.png'),
-    ContentItem(id: '1', title: 'Islamic Art', thumbnailUrl: 'assets/images/thumb_islamic_art.png'),
-    ContentItem(id: '2', title: 'The Golden Age', thumbnailUrl: 'assets/images/thumb_baghdad.png'),
+    ContentItem(
+        id: '3',
+        title: 'Art of Calligraphy',
+        thumbnailUrl: 'assets/images/thumb_calligraphy.png'),
+    ContentItem(
+        id: '1',
+        title: 'Islamic Art',
+        thumbnailUrl: 'assets/images/thumb_islamic_art.png'),
+    ContentItem(
+        id: '2',
+        title: 'The Golden Age',
+        thumbnailUrl: 'assets/images/thumb_baghdad.png'),
   ];
   // --- End Mock Data ---
 
@@ -49,7 +67,7 @@ class HomePage extends StatelessWidget {
             title: 'Popular Movies',
             items: _popularMovies,
           ),
-          
+
           SizedBox(height: 24), // Spacer at the bottom
         ],
       ),

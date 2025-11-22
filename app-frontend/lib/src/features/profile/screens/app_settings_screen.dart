@@ -1,6 +1,7 @@
 // lib/src/features/profile/screens/app_settings_screen.dart
 import 'package:al_faruk_app/main.dart';
 import 'package:al_faruk_app/src/core/services/settings_service.dart';
+import 'package:al_faruk_app/src/core/theme/theme_provider.dart';
 import 'package:al_faruk_app/src/features/profile/screens/privacy_policy_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

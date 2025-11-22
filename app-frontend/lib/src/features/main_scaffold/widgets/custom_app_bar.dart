@@ -1,5 +1,6 @@
 // lib/src/features/main_scaffold/widgets/custom_app_bar.dart
 import 'package:al_faruk_app/main.dart';
+import 'package:al_faruk_app/src/core/theme/theme_provider.dart';
 import 'package:al_faruk_app/src/features/notifications/screens/notification_center_screen.dart'; // <-- 1. IMPORT THE NEW SCREEN
 import 'package:al_faruk_app/src/features/profile/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
