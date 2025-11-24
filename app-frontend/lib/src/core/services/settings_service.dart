@@ -33,7 +33,7 @@ class SettingsService with ChangeNotifier {
   final Map<String, String> soundOptions = {
     'adhan.mp3': 'Adhan',
     'takbir.mp3': 'Takbir',
-    'tone.mp3': 'Tone',
+    // 'tone.mp3': 'Tone',
   };
 
   Future<void> loadSettings() async {
@@ -41,8 +41,21 @@ class SettingsService with ChangeNotifier {
     _localeCode = _prefs.getString('languageCode') ?? 'en';
     _remindersEnabled = _prefs.getBool('remindersEnabled') ?? true;
     _soundEnabled = _prefs.getBool('soundEnabled') ?? true;
-    _selectedSound = _prefs.getString('selectedSound') ?? 'adhan.mp3';
     _vibrationEnabled = _prefs.getBool('vibrationEnabled') ?? true;
+
+    // --- START OF THE FIX ---
+    String savedSound = _prefs.getString('selectedSound') ?? 'adhan.mp3';
+
+    // Check if the saved sound is still in our list of options.
+    // If not, fall back to the first available option.
+    if (soundOptions.containsKey(savedSound)) {
+      _selectedSound = savedSound;
+    } else {
+      _selectedSound =
+          soundOptions.keys.first; // Reset to the first valid sound
+    }
+    // --- END OF THE FIX ---
+
     notifyListeners();
   }
 

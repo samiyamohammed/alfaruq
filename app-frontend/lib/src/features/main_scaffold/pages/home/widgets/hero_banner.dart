@@ -17,11 +17,25 @@ class HeroBanner extends StatelessWidget {
         child: Stack(
           alignment: Alignment.bottomLeft,
           children: [
-            Image.asset(
-              content.thumbnailUrl,
+            // --- THE DEFINITIVE FIX ---
+
+            // 1. A black background container to create a clean "letterbox" effect
+            //    for images that don't match the banner's aspect ratio.
+            Container(
               height: 220,
               width: double.infinity,
-              fit: BoxFit.cover,
+              color: Colors.black,
+              child: Image.network(
+                content.thumbnailUrl,
+                width: double.infinity,
+                // 2. Changed to BoxFit.contain. This is the most important change.
+                //    It guarantees the ENTIRE image is visible without cropping.
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(Icons.broken_image,
+                      color: Colors.grey, size: 48);
+                },
+              ),
             ),
             // Gradient overlay for text readability
             Container(

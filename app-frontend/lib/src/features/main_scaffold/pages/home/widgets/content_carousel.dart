@@ -16,7 +16,10 @@ class ContentCarousel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         SizedBox(
@@ -32,17 +35,28 @@ class ContentCarousel extends StatelessWidget {
                 child: Card(
                   clipBehavior: Clip.antiAlias,
                   elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                   child: SizedBox(
                     width: 140,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Image.asset(
+                          // --- THE FIX ---
+                          // Changed Image.asset to Image.network to load the URL.
+                          child: Image.network(
                             item.thumbnailUrl,
                             width: double.infinity,
                             fit: BoxFit.cover,
+                            // Added an error builder for a better user experience.
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[200],
+                                child: const Icon(Icons.broken_image,
+                                    color: Colors.grey),
+                              );
+                            },
                           ),
                         ),
                         Padding(

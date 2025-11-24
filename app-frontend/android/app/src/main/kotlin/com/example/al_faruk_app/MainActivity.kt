@@ -1,4 +1,4 @@
-package com.example.temp_android
+package com.example.al_faruk_app
 
 import io.flutter.embedding.android.FlutterActivity
 

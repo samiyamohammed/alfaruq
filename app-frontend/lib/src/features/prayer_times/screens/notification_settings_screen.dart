@@ -1,17 +1,31 @@
 // lib/src/features/prayer_times/screens/notification_settings_screen.dart
+
+// 1. REMOVE the old provider package import
+// import 'package:provider/provider.dart';
+
+// 2. ADD the flutter_riverpod import
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// 3. IMPORT your service providers file where settingsServiceProvider is defined
+import 'package:al_faruk_app/src/core/services/service_providers.dart';
+
 import 'package:al_faruk_app/src/core/services/settings_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-class NotificationSettingsScreen extends StatefulWidget {
+// 4. CHANGE StatefulWidget to ConsumerStatefulWidget
+class NotificationSettingsScreen extends ConsumerStatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
+  // 5. UPDATE the createState method accordingly
+  ConsumerState<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
 }
 
-class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
+// 6. CHANGE State to ConsumerState
+class _NotificationSettingsScreenState
+    extends ConsumerState<NotificationSettingsScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
@@ -22,8 +36,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Get the settings service. We listen for changes to update the UI.
-    final settings = Provider.of<SettingsService>(context, listen: true);
+    // 7. READ the provider using ref.watch (from Riverpod)
+    // The 'ref' object is automatically available in a ConsumerState
+    final settings = ref.watch(settingsServiceProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reminder Settings')),
@@ -31,22 +46,26 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         children: [
           const SizedBox(height: 8),
           SwitchListTile(
-            title: const Text('Enable All Reminders', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: const Text('Enable All Reminders',
+                style: TextStyle(fontWeight: FontWeight.bold)),
             value: settings.remindersEnabled,
-            onChanged: (value) => settings.setRemindersEnabled(value),
+            onChanged: (value) => ref
+                .read(settingsServiceProvider.notifier)
+                .setRemindersEnabled(value),
           ),
           const Divider(),
           if (settings.remindersEnabled) ...[
             const ListTile(
-              title: Text('Notification Behavior', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: Text('Notification Behavior',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             SwitchListTile(
               title: const Text('Reminder Sound'),
               value: settings.soundEnabled,
-              onChanged: (value) => settings.setSoundEnabled(value),
+              onChanged: (value) => ref
+                  .read(settingsServiceProvider.notifier)
+                  .setSoundEnabled(value),
             ),
-            
-            // --- THE FIX: REPLACE ListTile WITH A DROPDOWN ---
             if (settings.soundEnabled)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
@@ -57,7 +76,6 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                   ),
                   value: settings.selectedSound,
                   items: settings.soundOptions.entries.map((entry) {
-                    // entry.key is 'adhan.mp3', entry.value is 'Adhan'
                     return DropdownMenuItem<String>(
                       value: entry.key,
                       child: Text(entry.value),
@@ -65,19 +83,21 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                   }).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
-                      // Update the setting in the service
-                      settings.setSelectedSound(newValue);
-                      // Play a preview of the new sound
+                      // Use ref.read to call methods on your service/notifier
+                      ref
+                          .read(settingsServiceProvider.notifier)
+                          .setSelectedSound(newValue);
                       _audioPlayer.play(AssetSource('audio/$newValue'));
                     }
                   },
                 ),
               ),
-
             SwitchListTile(
               title: const Text('Vibration'),
               value: settings.vibrationEnabled,
-              onChanged: (value) => settings.setVibrationEnabled(value),
+              onChanged: (value) => ref
+                  .read(settingsServiceProvider.notifier)
+                  .setVibrationEnabled(value),
             ),
           ]
         ],

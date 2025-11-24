@@ -83,7 +83,7 @@ class ProfileScreen extends ConsumerWidget {
                           child: Icon(Icons.error_outline,
                               size: 50, color: Colors.red)),
                       const SizedBox(height: 16),
-                      Text('Error',
+                      const Text('Error',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                               fontSize: 22,

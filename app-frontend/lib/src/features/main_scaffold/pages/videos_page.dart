@@ -1,38 +1,41 @@
 // lib/src/features/main_scaffold/pages/videos_page.dart
 import 'package:al_faruk_app/src/core/models/video_model.dart';
-import 'package:al_faruk_app/src/core/services/youtube_service.dart';
+// 1. IMPORT RIVERPOD AND THE NEW PROVIDER
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/video_player/screens/video_player_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class VideosPage extends StatefulWidget {
+// 2. CONVERT TO ConsumerStatefulWidget
+class VideosPage extends ConsumerStatefulWidget {
   const VideosPage({super.key});
 
   @override
-  State<VideosPage> createState() => _VideosPageState();
+  // 3. UPDATE THE createState SIGNATURE
+  ConsumerState<VideosPage> createState() => _VideosPageState();
 }
 
-class _VideosPageState extends State<VideosPage> {
-  // --- 1. NEW STATE VARIABLES FOR SEARCH ---
+// 4. CHANGE State TO ConsumerState
+class _VideosPageState extends ConsumerState<VideosPage> {
   bool _isLoading = true;
   String? _errorMessage;
-  
-  // This holds the original, full list of videos from the API
+
   List<Video> _allVideos = [];
-  // This holds the list of videos to be displayed (after filtering)
   List<Video> _filteredVideos = [];
 
-  // Controller for the search text field
   final TextEditingController _searchController = TextEditingController();
 
-  final YouTubeService _youTubeService = YouTubeService();
+  // The playlist ID is kept but no longer essential for the current API endpoint
   final String _playlistId = 'UUDIi_4EqI8j8e8rAyIIoPsQ';
 
   @override
   void initState() {
     super.initState();
-    _fetchVideos(); // Fetch data when the page loads
-    
-    // Add a listener to the search controller to filter as the user types
+    // Use this pattern to call async code safely from initState in a ConsumerWidget
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchVideos();
+    });
+
     _searchController.addListener(_filterVideos);
   }
 
@@ -43,24 +46,32 @@ class _VideosPageState extends State<VideosPage> {
     super.dispose();
   }
 
-  // --- 2. NEW METHOD TO FETCH AND SET DATA ---
   Future<void> _fetchVideos() async {
     try {
-      final videos = await _youTubeService.fetchPlaylistVideos(playlistId: _playlistId);
-      setState(() {
-        _allVideos = videos;
-        _filteredVideos = videos; // Initially, the filtered list is the full list
-        _isLoading = false;
-      });
+      // 5. READ THE YOUTUBE SERVICE FROM THE RIVERPOD PROVIDER
+      // This ensures we get the service with the authenticated Dio client.
+      final youTubeService = ref.read(youtubeServiceProvider);
+      final videos =
+          await youTubeService.fetchPlaylistVideos(playlistId: _playlistId);
+
+      // Check if the widget is still mounted before updating the state
+      if (mounted) {
+        setState(() {
+          _allVideos = videos;
+          _filteredVideos = videos;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // --- 3. NEW METHOD TO FILTER VIDEOS ---
   void _filterVideos() {
     final query = _searchController.text.toLowerCase();
     setState(() {
@@ -70,19 +81,19 @@ class _VideosPageState extends State<VideosPage> {
     });
   }
 
-  // --- 4. BUILD THE NEW UI ---
+  // The rest of the file (build method and UI) remains unchanged
+  // as it was already well-structured to handle different states.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Column(
         children: [
-          // --- The Search Bar ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search videos...',
+                hintText: 'Search playlists...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.0),
@@ -98,7 +109,6 @@ class _VideosPageState extends State<VideosPage> {
               ),
             ),
           ),
-          // --- The Content Area ---
           Expanded(
             child: _buildContent(),
           ),
@@ -107,7 +117,6 @@ class _VideosPageState extends State<VideosPage> {
     );
   }
 
-  // --- 5. HELPER WIDGET TO BUILD CONTENT BASED ON STATE ---
   Widget _buildContent() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -117,7 +126,8 @@ class _VideosPageState extends State<VideosPage> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text('Error: $_errorMessage'),
+          child: Text(
+              '$_errorMessage'), // The error message will now come from the service
         ),
       );
     }
@@ -126,7 +136,6 @@ class _VideosPageState extends State<VideosPage> {
       return const Center(child: Text('No videos found.'));
     }
 
-    // Build the list using the filtered data
     return ListView.builder(
       itemCount: _filteredVideos.length,
       itemBuilder: (context, index) {
@@ -136,7 +145,7 @@ class _VideosPageState extends State<VideosPage> {
             Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => VideoPlayerScreen(
                 video: video,
-                playlist: _allVideos, // Pass the original full list
+                playlist: _allVideos,
               ),
             ));
           },
@@ -155,7 +164,8 @@ class _VideosPageState extends State<VideosPage> {
                     return Container(
                       height: 200,
                       color: Colors.grey[200],
-                      child: const Center(child: Icon(Icons.error_outline, color: Colors.red)),
+                      child: const Center(
+                          child: Icon(Icons.error_outline, color: Colors.red)),
                     );
                   },
                 ),
@@ -166,14 +176,20 @@ class _VideosPageState extends State<VideosPage> {
                     children: [
                       Text(
                         video.title,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         video.channelName,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
                       ),
                     ],
                   ),

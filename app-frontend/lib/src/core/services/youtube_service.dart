@@ -1,71 +1,56 @@
 // lib/src/core/services/youtube_service.dart
 import 'dart:convert';
-import 'dart:io'; // To catch SocketException
 import 'package:al_faruk_app/src/core/models/video_model.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+// 1. IMPORT DIO AND REMOVE HTTP
+import 'package:dio/dio.dart';
 
 class YouTubeService {
-  // 1. CORRECTLY get the key from the .env file using its NAME.
-  final String? _apiKey = dotenv.env['YOUTUBE_API_KEY'];
+  // 2. ACCEPT DIO IN THE CONSTRUCTOR
+  final Dio _dio;
+  YouTubeService({required Dio dio}) : _dio = dio;
 
-  // 2. A more robust way to get the best available thumbnail URL.
-  String _getBestThumbnailUrl(Map<String, dynamic> thumbnails) {
-    if (thumbnails.containsKey('high')) {
-      return thumbnails['high']['url'];
-    } else if (thumbnails.containsKey('medium')) {
-      return thumbnails['medium']['url'];
-    } else if (thumbnails.containsKey('default')) {
-      return thumbnails['default']['url'];
-    }
-    // Return a placeholder if no thumbnail is found
-    return 'https://via.placeholder.com/480x360.png?text=No+Image';
-  }
+  // 3. REMOVE HARDCODED TOKEN AND BASE URL
+  // The token is now handled automatically by the AuthInterceptor.
 
   Future<List<Video>> fetchPlaylistVideos({required String playlistId}) async {
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      throw Exception('API Key not found or is empty. Make sure you have set it up correctly in your .env file');
-    }
-
-    final url = Uri.parse(
-        'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=$playlistId&maxResults=20&key=$_apiKey');
+    // The endpoint is relative to the baseUrl configured in your dioProvider.
+    const endpoint = '/youtube/playlist';
 
     try {
-      final response = await http.get(url);
+      // 4. USE DIO FOR THE GET REQUEST
+      // The AuthInterceptor will automatically add the correct auth headers.
+      final response = await _dio.get(endpoint);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<dynamic> items = data['items'];
+        // Dio automatically decodes JSON, so response.data is already a List.
+        final List<dynamic> items = response.data;
 
         return items.map((item) {
-          final snippet = item['snippet'];
-          if (snippet == null || snippet['resourceId'] == null) {
-            return null; // Skip invalid items
-          }
-
-          final thumbnailUrl = _getBestThumbnailUrl(snippet['thumbnails']);
-
           return Video(
-            id: snippet['resourceId']['videoId'],
-            title: snippet['title'],
-            thumbnailUrl: thumbnailUrl,
-            channelName: snippet['videoOwnerChannelTitle'],
+            id: item['videoId'] ?? '',
+            title: item['title'] ?? 'No Title',
+            thumbnailUrl: item['thumbnailUrl'] ?? '',
+            description: item['description'] ?? '',
+            // Provide default values for fields not in the API response.
+            channelName: 'Alfaruk Multimedia',
             uploadDate: '',
             viewCount: '',
-            description: snippet['description'],
           );
-        }).whereType<Video>().toList(); // Filter out any null items
+        }).toList();
       } else {
-        // Provide more detailed error information
-        final errorData = json.decode(response.body);
-        final errorMessage = errorData['error']['message'] ?? 'Unknown API error';
-        throw Exception('Failed to load playlist: $errorMessage');
+        throw Exception(
+            'Failed to load playlist. Status code: ${response.statusCode}');
       }
-    } on SocketException {
-      // 3. Handle cases where there is no internet connection.
-      throw Exception('No Internet connection. Please check your network.');
+    } on DioException catch (e) {
+      // 5. HANDLE DIO-SPECIFIC ERRORS
+      if (e.response?.statusCode == 401) {
+        throw Exception('Authentication failed. Please log in again.');
+      }
+      // Provide a more general error for other network issues.
+      throw Exception(
+          'Failed to connect to the server. Please check your network.');
     } catch (e) {
-      // Catch any other unexpected errors.
+      // Catch any other unexpected errors during parsing.
       throw Exception('An unexpected error occurred: $e');
     }
   }

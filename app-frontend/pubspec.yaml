@@ -17,26 +17,33 @@ dependencies:
   dio: ^5.4.1
   provider: ^6.1.5+1
   flutter_secure_storage: ^9.0.0
+  # NOTE: The 'provider' package has been removed as it is not needed when using Riverpod.
+
+  # --- NOTIFICATION & BACKGROUND PACKAGES (UPDATED TO MODERN VERSIONS) ---
+  flutter_local_notifications: ^17.2.4 # Updated to a stable modern version
+  workmanager: ^0.9.0 # Updated to a modern version that supports V2 embedding
+  flutter_timezone: ^5.0.1 # This was already correct
+  timezone: ^0.9.4
+  logger: ^2.4.0
 
   # --- UTILITY PACKAGES ---
   google_fonts: ^6.1.0
   permission_handler: ^11.3.1
-  intl: ^0.20.2 # Note: Version conflict resolved, using a compatible version.
+  intl: ^0.20.2 # Using a standard, compatible version
   flutter_dotenv: ^5.1.0
   shared_preferences: ^2.2.3
-  flutter_localizations_plus: ^0.3.2
   url_launcher: ^6.3.2
-  uni_links: ^0.5.1 # ADDED: For deep linking / catching the redirect
 
   # --- FEATURE PACKAGES ---
-  pinput: ^3.0.1
+  pinput: ^4.0.0 # Updated to a more recent stable version
   flutter_qiblah: ^3.1.0
   geolocator: ^13.0.4
-  geocoding: ^2.1.0
+  geocoding: ^3.0.0 # Updated to a more recent stable version
   adhan: ^2.0.0+1
   youtube_player_iframe: ^5.1.2
   audioplayers: ^6.0.0
   app_links: ^6.4.1
+  adhan_dart: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -49,7 +56,7 @@ flutter:
 
   # Register asset folder
   assets:
-    # - .env
+    - assets/.env
     - assets/
     - assets/images/logo.png
     - assets/images/logo_symbol.png

@@ -1,75 +1,118 @@
 // lib/src/features/main_scaffold/pages/home_page.dart
+
+// 1. IMPORT NECESSARY MODELS, PROVIDERS, AND WIDGETS
 import 'package:al_faruk_app/src/core/models/content_item_model.dart';
+import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/content_carousel.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/hero_banner.dart';
 import 'package:flutter/material.dart';
+// 2. IMPORT RIVERPOD
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class HomePage extends StatelessWidget {
+// 3. CONVERT TO A ConsumerWidget
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
-  // --- Mock Data ---
-  // In a real app, this data would come from an API.
-  static const _featuredContent = ContentItem(
-    id: '1',
-    title: 'The Beauty of Islamic Art',
-    thumbnailUrl: 'assets/images/thumb_islamic_art.png',
-  );
-
-  static const _newTrailers = [
-    ContentItem(
-        id: '2',
-        title: 'The Golden Age',
-        thumbnailUrl: 'assets/images/thumb_baghdad.png'),
-    ContentItem(
-        id: '3',
-        title: 'Art of Calligraphy',
-        thumbnailUrl: 'assets/images/thumb_calligraphy.png'),
-    ContentItem(
-        id: '1',
-        title: 'Islamic Art',
-        thumbnailUrl: 'assets/images/thumb_islamic_art.png'),
-  ];
-
-  static const _popularMovies = [
-    ContentItem(
-        id: '3',
-        title: 'Art of Calligraphy',
-        thumbnailUrl: 'assets/images/thumb_calligraphy.png'),
-    ContentItem(
-        id: '1',
-        title: 'Islamic Art',
-        thumbnailUrl: 'assets/images/thumb_islamic_art.png'),
-    ContentItem(
-        id: '2',
-        title: 'The Golden Age',
-        thumbnailUrl: 'assets/images/thumb_baghdad.png'),
-  ];
-  // --- End Mock Data ---
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 4. WATCH THE NEW feedContentProvider
+    final feedAsyncValue = ref.watch(feedContentProvider);
+
     return Scaffold(
-      body: ListView(
-        children: const [
-          // The large banner at the top
-          HeroBanner(content: _featuredContent),
+      // 5. USE .when() TO HANDLE LOADING, ERROR, AND DATA STATES
+      body: feedAsyncValue.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (feedItems) {
+          // --- DATA PROCESSING ---
+          if (feedItems.isEmpty) {
+            return const Center(child: Text('No content available.'));
+          }
 
-          // The first horizontally scrolling list
-          ContentCarousel(
-            title: 'New Trailers',
-            items: _newTrailers,
-          ),
+          // Filter for movies and series
+          final movies =
+              feedItems.where((item) => item.type == 'MOVIE').toList();
+          final series =
+              feedItems.where((item) => item.type == 'SERIES').toList();
 
-          SizedBox(height: 16), // Spacer
+          // Find the newest movie for the Hero Banner
+          // Sort by createdAt date in descending order and take the first one.
+          FeedItem? featuredMovie;
+          if (movies.isNotEmpty) {
+            movies.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            featuredMovie = movies.first;
+          }
 
-          // The second horizontally scrolling list
-          ContentCarousel(
-            title: 'Popular Movies',
-            items: _popularMovies,
-          ),
+          // Create lists of ContentItem for the carousels
+          // This adapts our detailed FeedItem model to the generic ContentCarousel widget
+          final trailerItems = feedItems
+              .where((item) => item.trailerUrl != null)
+              .map((item) => ContentItem(
+                  id: item.id,
+                  title: item.title,
+                  thumbnailUrl: item.thumbnailUrl))
+              .toList();
 
-          SizedBox(height: 24), // Spacer at the bottom
-        ],
+          final movieItems = movies
+              .map((item) => ContentItem(
+                  id: item.id,
+                  title: item.title,
+                  thumbnailUrl: item.thumbnailUrl))
+              .toList();
+
+          final seriesItems = series
+              .map((item) => ContentItem(
+                  id: item.id,
+                  title: item.title,
+                  thumbnailUrl: item.thumbnailUrl))
+              .toList();
+
+          // --- UI BUILD ---
+          return ListView(
+            children: [
+              // Use the newest movie for the Hero Banner, with a fallback
+              if (featuredMovie != null)
+                HeroBanner(
+                  content: ContentItem(
+                    id: featuredMovie.id,
+                    title: featuredMovie.title,
+                    thumbnailUrl: featuredMovie.thumbnailUrl,
+                  ),
+                )
+              else
+                const SizedBox(
+                    height: 24), // Show a spacer if no movies are found
+
+              // Carousel for New Trailers
+              if (trailerItems.isNotEmpty)
+                ContentCarousel(
+                  title: 'New Trailers',
+                  items: trailerItems,
+                ),
+
+              const SizedBox(height: 16),
+
+              // Carousel for Popular Movies
+              if (movieItems.isNotEmpty)
+                ContentCarousel(
+                  title: 'Popular Movies',
+                  items: movieItems,
+                ),
+
+              const SizedBox(height: 16),
+
+              // NEW Carousel for Series
+              if (seriesItems.isNotEmpty)
+                ContentCarousel(
+                  title: 'Series',
+                  items: seriesItems,
+                ),
+
+              const SizedBox(height: 24),
+            ],
+          );
+        },
       ),
     );
   }
