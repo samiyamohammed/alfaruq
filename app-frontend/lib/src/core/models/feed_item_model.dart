@@ -1,39 +1,45 @@
 // lib/src/core/models/feed_item_model.dart
 
-// A detailed model to represent an item from the /api/feed endpoint.
 class FeedItem {
   final String id;
   final String title;
   final String description;
-  final String thumbnailUrl;
-  final String? videoUrl; // Can be null
-  final String? trailerUrl; // Can be null
-  final String type; // 'MOVIE' or 'SERIES'
-  final DateTime createdAt;
+  final String? thumbnailUrl;
+  final String? videoUrl;
+  final String? trailerUrl;
+  final String type; // 'MOVIE', 'SERIES', 'SEASON', 'EPISODE'
+  final DateTime? createdAt; // Made nullable to be safe with nested items
+  final List<FeedItem> children; // NEW: Recursive list for Seasons/Episodes
 
   const FeedItem({
     required this.id,
     required this.title,
     required this.description,
-    required this.thumbnailUrl,
+    this.thumbnailUrl,
     this.videoUrl,
     this.trailerUrl,
     required this.type,
-    required this.createdAt,
+    this.createdAt,
+    this.children = const [],
   });
 
-  // A factory constructor to create an instance from a JSON map.
   factory FeedItem.fromJson(Map<String, dynamic> json) {
     return FeedItem(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      thumbnailUrl: json['thumbnailUrl'] as String,
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? 'No Title',
+      description: json['description'] as String? ?? '',
+      thumbnailUrl: json['thumbnailUrl'] as String?,
       videoUrl: json['videoUrl'] as String?,
       trailerUrl: json['trailerUrl'] as String?,
-      type: json['type'] as String,
-      // Safely parse the date string into a DateTime object.
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      type: json['type'] as String? ?? 'UNKNOWN',
+      // Parse date safely
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'])
+          : null,
+      // RECURSIVE MAPPING for Series -> Seasons -> Episodes
+      children: json['children'] != null
+          ? (json['children'] as List).map((c) => FeedItem.fromJson(c)).toList()
+          : [],
     );
   }
 }

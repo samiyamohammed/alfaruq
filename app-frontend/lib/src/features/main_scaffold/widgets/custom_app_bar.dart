@@ -1,8 +1,7 @@
-// lib/src/features/main_scaffold/widgets/custom_app_bar.dart
 import 'package:al_faruk_app/main.dart';
 import 'package:al_faruk_app/src/core/theme/theme_provider.dart';
-import 'package:al_faruk_app/src/features/notifications/screens/notification_center_screen.dart'; // <-- 1. IMPORT THE NEW SCREEN
-import 'package:al_faruk_app/src/features/profile/screens/profile_screen.dart';
+import 'package:al_faruk_app/src/features/notifications/screens/notification_center_screen.dart';
+// Removed ProfileScreen import as it's no longer needed here
 import 'package:flutter/material.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -19,29 +18,21 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         IconButton(
           tooltip: 'Toggle Theme',
-          icon: Icon(isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+          icon: Icon(isDarkMode
+              ? Icons.light_mode_outlined
+              : Icons.dark_mode_outlined),
           onPressed: () => themeManager.toggleTheme(),
         ),
-        // --- 2. UPDATE THIS WIDGET ---
         IconButton(
           tooltip: 'Notifications',
           icon: const Icon(Icons.notifications_none_outlined),
           onPressed: () {
-            // Navigate to the NotificationCenterScreen
             Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => const NotificationCenterScreen(),
             ));
           },
         ),
-        IconButton(
-          tooltip: 'Profile',
-          icon: const Icon(Icons.person_outline),
-          onPressed: () {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const ProfileScreen(),
-            ));
-          },
-        ),
+        // REMOVED PROFILE BUTTON FROM HERE
         const SizedBox(width: 8),
       ],
     );

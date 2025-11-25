@@ -141,6 +141,330 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Afaan Oromo'**
   String get afaanOromo;
+
+  /// No description provided for @navHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get navHome;
+
+  /// No description provided for @navVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos'**
+  String get navVideos;
+
+  /// No description provided for @navMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Movies'**
+  String get navMovies;
+
+  /// No description provided for @navQiblah.
+  ///
+  /// In en, this message translates to:
+  /// **'Qiblah'**
+  String get navQiblah;
+
+  /// No description provided for @navProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get navProfile;
+
+  /// No description provided for @sectionTrailers.
+  ///
+  /// In en, this message translates to:
+  /// **'New Trailers'**
+  String get sectionTrailers;
+
+  /// No description provided for @sectionPopularMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular Movies'**
+  String get sectionPopularMovies;
+
+  /// No description provided for @sectionSeries.
+  ///
+  /// In en, this message translates to:
+  /// **'Series'**
+  String get sectionSeries;
+
+  /// No description provided for @sectionMusicVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Music Videos'**
+  String get sectionMusicVideos;
+
+  /// No description provided for @seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See All'**
+  String get seeAll;
+
+  /// No description provided for @noContent.
+  ///
+  /// In en, this message translates to:
+  /// **'No content available.'**
+  String get noContent;
+
+  /// No description provided for @tabPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get tabPlaylists;
+
+  /// No description provided for @tabMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Movies'**
+  String get tabMovies;
+
+  /// No description provided for @tabSeries.
+  ///
+  /// In en, this message translates to:
+  /// **'Series'**
+  String get tabSeries;
+
+  /// No description provided for @tabMusicVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Music Videos'**
+  String get tabMusicVideos;
+
+  /// No description provided for @tabTrailers.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailers'**
+  String get tabTrailers;
+
+  /// No description provided for @searchPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Search playlists...'**
+  String get searchPlaylists;
+
+  /// No description provided for @noVideosFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No videos found.'**
+  String get noVideosFound;
+
+  /// No description provided for @libraryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get libraryTitle;
+
+  /// No description provided for @noContentFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No content found.'**
+  String get noContentFound;
+
+  /// No description provided for @qiblahTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Qiblah Compass'**
+  String get qiblahTitle;
+
+  /// No description provided for @qiblahDirection.
+  ///
+  /// In en, this message translates to:
+  /// **'Qiblah Direction'**
+  String get qiblahDirection;
+
+  /// No description provided for @alignDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Align the top of your device with the Kaaba direction'**
+  String get alignDevice;
+
+  /// No description provided for @calibrateWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Wave your device in a figure-8 to calibrate'**
+  String get calibrateWarning;
+
+  /// No description provided for @locationFetching.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching location...'**
+  String get locationFetching;
+
+  /// No description provided for @locationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Location unavailable'**
+  String get locationUnavailable;
+
+  /// No description provided for @compassError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to initialize Qiblah compass'**
+  String get compassError;
+
+  /// No description provided for @deviceNotSupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Your device does not support compass sensor'**
+  String get deviceNotSupported;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @profileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile & Settings'**
+  String get profileTitle;
+
+  /// No description provided for @accountSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Settings'**
+  String get accountSettings;
+
+  /// No description provided for @prayerReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Prayer Reminders'**
+  String get prayerReminders;
+
+  /// No description provided for @logOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Log Out'**
+  String get logOut;
+
+  /// No description provided for @logOutConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to log out?'**
+  String get logOutConfirmation;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @loading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading...'**
+  String get loading;
+
+  /// No description provided for @pleaseWait.
+  ///
+  /// In en, this message translates to:
+  /// **'Please wait'**
+  String get pleaseWait;
+
+  /// No description provided for @error.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get error;
+
+  /// No description provided for @changePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Password'**
+  String get changePassword;
+
+  /// No description provided for @manageSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Subscription'**
+  String get manageSubscription;
+
+  /// No description provided for @deleteAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Account'**
+  String get deleteAccount;
+
+  /// No description provided for @reminderSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminder Settings'**
+  String get reminderSettings;
+
+  /// No description provided for @enableAllReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable All Reminders'**
+  String get enableAllReminders;
+
+  /// No description provided for @notificationBehavior.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification Behavior'**
+  String get notificationBehavior;
+
+  /// No description provided for @reminderSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminder Sound'**
+  String get reminderSound;
+
+  /// No description provided for @vibration.
+  ///
+  /// In en, this message translates to:
+  /// **'Vibration'**
+  String get vibration;
+
+  /// No description provided for @soundLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound'**
+  String get soundLabel;
+
+  /// No description provided for @prayerFajr.
+  ///
+  /// In en, this message translates to:
+  /// **'Fajr'**
+  String get prayerFajr;
+
+  /// No description provided for @prayerSunrise.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunrise'**
+  String get prayerSunrise;
+
+  /// No description provided for @prayerDhuhr.
+  ///
+  /// In en, this message translates to:
+  /// **'Dhuhr'**
+  String get prayerDhuhr;
+
+  /// No description provided for @prayerAsr.
+  ///
+  /// In en, this message translates to:
+  /// **'Asr'**
+  String get prayerAsr;
+
+  /// No description provided for @prayerMaghrib.
+  ///
+  /// In en, this message translates to:
+  /// **'Maghrib'**
+  String get prayerMaghrib;
+
+  /// No description provided for @prayerIsha.
+  ///
+  /// In en, this message translates to:
+  /// **'Isha'**
+  String get prayerIsha;
+
+  /// No description provided for @noData.
+  ///
+  /// In en, this message translates to:
+  /// **'No data'**
+  String get noData;
 }
 
 class _AppLocalizationsDelegate

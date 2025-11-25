@@ -1,118 +1,240 @@
-// lib/src/features/main_scaffold/pages/home_page.dart
-
-// 1. IMPORT NECESSARY MODELS, PROVIDERS, AND WIDGETS
 import 'package:al_faruk_app/src/core/models/content_item_model.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart'; // Import Provider
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/content_carousel.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/hero_banner.dart';
+import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:flutter/material.dart';
-// 2. IMPORT RIVERPOD
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:al_faruk_app/generated/app_localizations.dart';
 
-// 3. CONVERT TO A ConsumerWidget
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 4. WATCH THE NEW feedContentProvider
     final feedAsyncValue = ref.watch(feedContentProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      // 5. USE .when() TO HANDLE LOADING, ERROR, AND DATA STATES
       body: feedAsyncValue.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error: (err, stack) => Center(child: Text('${l10n.error}: $err')),
         data: (feedItems) {
-          // --- DATA PROCESSING ---
           if (feedItems.isEmpty) {
-            return const Center(child: Text('No content available.'));
+            return Center(child: Text(l10n.noContent));
           }
 
-          // Filter for movies and series
           final movies =
               feedItems.where((item) => item.type == 'MOVIE').toList();
           final series =
               feedItems.where((item) => item.type == 'SERIES').toList();
+          final musicVideos =
+              feedItems.where((item) => item.type == 'MUSIC_VIDEO').toList();
 
-          // Find the newest movie for the Hero Banner
-          // Sort by createdAt date in descending order and take the first one.
-          FeedItem? featuredMovie;
-          if (movies.isNotEmpty) {
-            movies.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            featuredMovie = movies.first;
+          void sortItems(List<FeedItem> items) {
+            if (items.isNotEmpty) {
+              items.sort((a, b) {
+                final dateA = a.createdAt ?? DateTime(0);
+                final dateB = b.createdAt ?? DateTime(0);
+                return dateB.compareTo(dateA);
+              });
+            }
           }
 
-          // Create lists of ContentItem for the carousels
-          // This adapts our detailed FeedItem model to the generic ContentCarousel widget
-          final trailerItems = feedItems
-              .where((item) => item.trailerUrl != null)
-              .map((item) => ContentItem(
-                  id: item.id,
-                  title: item.title,
-                  thumbnailUrl: item.thumbnailUrl))
-              .toList();
+          sortItems(movies);
+          sortItems(series);
+          sortItems(musicVideos);
 
-          final movieItems = movies
-              .map((item) => ContentItem(
-                  id: item.id,
-                  title: item.title,
-                  thumbnailUrl: item.thumbnailUrl))
-              .toList();
+          final featuredMovie = movies.isNotEmpty ? movies.first : null;
 
-          final seriesItems = series
-              .map((item) => ContentItem(
-                  id: item.id,
-                  title: item.title,
-                  thumbnailUrl: item.thumbnailUrl))
-              .toList();
+          List<ContentItem> mapToContentItems(List<FeedItem> items) {
+            return items.map((item) {
+              return ContentItem(
+                id: item.id,
+                title: item.title,
+                thumbnailUrl: item.thumbnailUrl ?? '',
+              );
+            }).toList();
+          }
 
-          // --- UI BUILD ---
+          final trailerItems = mapToContentItems(
+              feedItems.where((item) => item.trailerUrl != null).toList());
+          final movieItems = mapToContentItems(movies);
+          final seriesItems = mapToContentItems(series);
+          final musicVideoItems = mapToContentItems(musicVideos);
+
           return ListView(
             children: [
-              // Use the newest movie for the Hero Banner, with a fallback
+              // 1. HERO BANNER
               if (featuredMovie != null)
-                HeroBanner(
-                  content: ContentItem(
-                    id: featuredMovie.id,
-                    title: featuredMovie.title,
-                    thumbnailUrl: featuredMovie.thumbnailUrl,
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => ContentPlayerScreen(
+                        contentId: featuredMovie.id,
+                        relatedContent: movies,
+                      ),
+                    ));
+                  },
+                  child: HeroBanner(
+                    content: ContentItem(
+                      id: featuredMovie.id,
+                      title: featuredMovie.title,
+                      thumbnailUrl: featuredMovie.thumbnailUrl ?? '',
+                    ),
                   ),
                 )
               else
-                const SizedBox(
-                    height: 24), // Show a spacer if no movies are found
+                const SizedBox(height: 24),
 
-              // Carousel for New Trailers
-              if (trailerItems.isNotEmpty)
+              // 2. TRAILERS SECTION
+              if (trailerItems.isNotEmpty) ...[
+                _buildSectionHeader(
+                  context,
+                  title: l10n.sectionTrailers,
+                  onSeeAll: () {
+                    // Switch to Library Page (Index 2) -> Trailers Tab (Index 2)
+                    ref.read(libraryTabIndexProvider.notifier).state = 2;
+                    ref.read(bottomNavIndexProvider.notifier).state = 2;
+                  },
+                ),
                 ContentCarousel(
-                  title: 'New Trailers',
                   items: trailerItems,
+                  title: '',
+                  onItemTap: (contentItem) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => ContentPlayerScreen(
+                        contentId: contentItem.id,
+                        relatedContent: movies,
+                      ),
+                    ));
+                  },
                 ),
+              ],
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-              // Carousel for Popular Movies
-              if (movieItems.isNotEmpty)
+              // 3. POPULAR MOVIES SECTION
+              if (movieItems.isNotEmpty) ...[
+                _buildSectionHeader(
+                  context,
+                  title: l10n.sectionPopularMovies,
+                  onSeeAll: () {
+                    // Switch to Library Page (Index 2) -> Movies Tab (Index 0)
+                    ref.read(libraryTabIndexProvider.notifier).state = 0;
+                    ref.read(bottomNavIndexProvider.notifier).state = 2;
+                  },
+                ),
                 ContentCarousel(
-                  title: 'Popular Movies',
                   items: movieItems,
+                  title: '',
+                  onItemTap: (contentItem) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => ContentPlayerScreen(
+                        contentId: contentItem.id,
+                        relatedContent: movies,
+                      ),
+                    ));
+                  },
                 ),
+              ],
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-              // NEW Carousel for Series
-              if (seriesItems.isNotEmpty)
+              // 4. MUSIC VIDEOS SECTION
+              if (musicVideoItems.isNotEmpty) ...[
+                _buildSectionHeader(
+                  context,
+                  title: l10n.sectionMusicVideos,
+                  onSeeAll: () {
+                    // Switch to Videos Page (Index 1) -> Music Tab (Index 1)
+                    ref.read(videosTabIndexProvider.notifier).state = 1;
+                    ref.read(bottomNavIndexProvider.notifier).state = 1;
+                  },
+                ),
                 ContentCarousel(
-                  title: 'Series',
-                  items: seriesItems,
+                  items: musicVideoItems,
+                  title: '',
+                  onItemTap: (contentItem) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => ContentPlayerScreen(
+                        contentId: contentItem.id,
+                        relatedContent: musicVideos,
+                      ),
+                    ));
+                  },
                 ),
+              ],
+
+              const SizedBox(height: 8),
+
+              // 5. SERIES SECTION
+              if (seriesItems.isNotEmpty) ...[
+                _buildSectionHeader(
+                  context,
+                  title: l10n.sectionSeries,
+                  onSeeAll: () {
+                    // Switch to Library Page (Index 2) -> Series Tab (Index 1)
+                    ref.read(libraryTabIndexProvider.notifier).state = 1;
+                    ref.read(bottomNavIndexProvider.notifier).state = 2;
+                  },
+                ),
+                ContentCarousel(
+                  items: seriesItems,
+                  title: '',
+                  onItemTap: (contentItem) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => ContentPlayerScreen(
+                        contentId: contentItem.id,
+                        relatedContent: series,
+                      ),
+                    ));
+                  },
+                ),
+              ],
 
               const SizedBox(height: 24),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    required VoidCallback onSeeAll,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          InkWell(
+            onTap: onSeeAll,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Text(
+                l10n.seeAll,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

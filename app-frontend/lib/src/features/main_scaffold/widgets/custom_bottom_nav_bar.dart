@@ -1,5 +1,5 @@
-// lib/src/features/main_scaffold/widgets/custom_bottom_nav_bar.dart
 import 'package:flutter/material.dart';
+import 'package:al_faruk_app/generated/app_localizations.dart'; // Import
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -13,21 +13,29 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return BottomNavigationBar(
       currentIndex: currentIndex,
       onTap: onTap,
-      type: BottomNavigationBarType.fixed, // Shows all labels
+      type: BottomNavigationBarType.fixed,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      selectedItemColor: Theme.of(context).colorScheme.secondary, // Gold color for active icon
+      selectedItemColor: Theme.of(context).colorScheme.secondary,
       unselectedItemColor: Colors.grey,
       showUnselectedLabels: true,
       elevation: 4,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.video_library_outlined), label: 'Videos'),
-        BottomNavigationBarItem(icon: Icon(Icons.headset_outlined), label: 'Audio'),
-        BottomNavigationBarItem(icon: Icon(Icons.theaters_outlined), label: 'Movies'),
-        BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), label: 'Qiblah'),
+      items: [
+        BottomNavigationBarItem(
+            icon: const Icon(Icons.home_filled), label: l10n.navHome),
+        BottomNavigationBarItem(
+            icon: const Icon(Icons.video_library_outlined),
+            label: l10n.navVideos),
+        BottomNavigationBarItem(
+            icon: const Icon(Icons.theaters_outlined), label: l10n.navMovies),
+        BottomNavigationBarItem(
+            icon: const Icon(Icons.explore_outlined), label: l10n.navQiblah),
+        BottomNavigationBarItem(
+            icon: const Icon(Icons.person_outline), label: l10n.navProfile),
       ],
     );
   }

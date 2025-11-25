@@ -5,13 +5,26 @@ import 'package:google_fonts/google_fonts.dart';
 // --- Theme State Management ---
 // This small class will manage and notify the app of theme changes.
 class ThemeManager with ChangeNotifier {
+  // Defaulting to System is usually better UX, but I kept Light to match your previous code.
   ThemeMode _themeMode = ThemeMode.light;
 
   ThemeMode get themeMode => _themeMode;
 
-  toggleTheme() {
-    _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-    notifyListeners();
+  // 1. NEW METHOD: Allows setting specific modes (Light, Dark, System)
+  void setThemeMode(ThemeMode mode) {
+    if (_themeMode != mode) {
+      _themeMode = mode;
+      notifyListeners();
+    }
+  }
+
+  // kept for backward compatibility if used elsewhere
+  void toggleTheme() {
+    if (_themeMode == ThemeMode.light) {
+      setThemeMode(ThemeMode.dark);
+    } else {
+      setThemeMode(ThemeMode.light);
+    }
   }
 }
 

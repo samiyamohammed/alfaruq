@@ -1,38 +1,35 @@
-// lib/src/features/profile/screens/profile_screen.dart
 import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart';
-import 'package:al_faruk_app/src/features/auth/screens/login_screen.dart'; // Make sure LoginScreen is imported
+import 'package:al_faruk_app/src/features/auth/screens/login_screen.dart';
 import 'package:al_faruk_app/src/features/profile/logic/profile_controller.dart';
 import 'package:al_faruk_app/src/features/profile/screens/account_settings_screen.dart';
 import 'package:al_faruk_app/src/features/profile/screens/notifications_screen.dart';
 import 'package:al_faruk_app/src/features/profile/screens/app_settings_screen.dart';
 import 'package:al_faruk_app/src/features/profile/widgets/settings_list_tile.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:al_faruk_app/generated/app_localizations.dart'; // Import
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   Future<void> _showLogoutDialog(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
     return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Log Out'),
-          content: const Text('Are you sure you want to log out?'),
+          title: Text(l10n.logOut), // Localized
+          content: Text(l10n.logOutConfirmation), // Localized
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel), // Localized
               onPressed: () => Navigator.of(dialogContext).pop(),
             ),
             TextButton(
-              child: const Text('Log Out'),
+              child: Text(l10n.logOut), // Localized
               onPressed: () async {
-                // 1. Await the logout method to ensure the token is deleted.
                 await ref.read(authControllerProvider.notifier).logout();
-
-                // --- THE DEFINITIVE FIX (Your Suggestion) ---
-                // 2. Manually navigate to the LoginScreen and remove all previous routes.
-                // This is an explicit and reliable way to reset the app's UI state.
                 if (context.mounted) {
                   Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                     MaterialPageRoute(
@@ -51,9 +48,10 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileState = ref.watch(profileControllerProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile & Settings')),
+      appBar: const CustomAppBar(),
       body: Column(
         children: [
           Expanded(
@@ -61,19 +59,20 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 const SizedBox(height: 24),
                 profileState.when(
-                  loading: () => const Column(
+                  loading: () => Column(
                     children: [
-                      CircleAvatar(
+                      const CircleAvatar(
                           radius: 50, child: CircularProgressIndicator()),
-                      SizedBox(height: 16),
-                      Text('Loading...',
+                      const SizedBox(height: 16),
+                      Text(l10n.loading, // Localized
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 22, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 4),
-                      Text('Please wait',
+                      const SizedBox(height: 4),
+                      Text(l10n.pleaseWait, // Localized
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                          style: const TextStyle(
+                              fontSize: 16, color: Colors.grey)),
                     ],
                   ),
                   error: (error, stackTrace) => Column(
@@ -83,16 +82,17 @@ class ProfileScreen extends ConsumerWidget {
                           child: Icon(Icons.error_outline,
                               size: 50, color: Colors.red)),
                       const SizedBox(height: 16),
-                      const Text('Error',
+                      Text(l10n.error, // Localized
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: Colors.red)),
                       const SizedBox(height: 4),
                       Text(error.toString(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 16, color: Colors.grey)),
+                          style: const TextStyle(
+                              fontSize: 16, color: Colors.grey)),
                     ],
                   ),
                   data: (user) => Column(
@@ -116,7 +116,7 @@ class ProfileScreen extends ConsumerWidget {
                 const Divider(),
                 SettingsListTile(
                   icon: Icons.person_outline,
-                  title: 'Account Settings',
+                  title: l10n.accountSettings, // Localized
                   onTap: () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (context) => const AccountSettingsScreen()));
@@ -124,7 +124,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 SettingsListTile(
                   icon: Icons.notifications_none_outlined,
-                  title: 'Prayer Reminders',
+                  title: l10n.prayerReminders, // Localized
                   onTap: () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (context) => const NotificationsScreen()));
@@ -132,7 +132,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 SettingsListTile(
                   icon: Icons.settings_outlined,
-                  title: 'App Settings',
+                  title: l10n.appSettings, // Localized
                   onTap: () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (context) => const AppSettingsScreen()));
@@ -147,7 +147,7 @@ class ProfileScreen extends ConsumerWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.logout),
-                label: const Text('Log Out'),
+                label: Text(l10n.logOut), // Localized
                 onPressed: () => _showLogoutDialog(context, ref),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.red,
