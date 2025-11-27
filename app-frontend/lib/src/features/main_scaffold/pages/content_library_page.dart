@@ -163,6 +163,7 @@ class _ContentLibraryPageState extends ConsumerState<ContentLibraryPage>
                                       Icon(Icons.movie, color: Colors.white54)),
                         ),
                       ),
+                      // Play Icon (Center)
                       Center(
                         child: Icon(
                           isTrailer
@@ -172,6 +173,24 @@ class _ContentLibraryPageState extends ConsumerState<ContentLibraryPage>
                           size: 40,
                         ),
                       ),
+                      // NEW: Lock Icon (Top Right)
+                      if (item.isLocked)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.lock,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

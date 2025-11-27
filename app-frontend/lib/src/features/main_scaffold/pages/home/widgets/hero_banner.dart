@@ -17,10 +17,7 @@ class HeroBanner extends StatelessWidget {
         child: Stack(
           alignment: Alignment.bottomLeft,
           children: [
-            // --- THE DEFINITIVE FIX ---
-
-            // 1. A black background container to create a clean "letterbox" effect
-            //    for images that don't match the banner's aspect ratio.
+            // 1. Background Image
             Container(
               height: 220,
               width: double.infinity,
@@ -28,8 +25,6 @@ class HeroBanner extends StatelessWidget {
               child: Image.network(
                 content.thumbnailUrl,
                 width: double.infinity,
-                // 2. Changed to BoxFit.contain. This is the most important change.
-                //    It guarantees the ENTIRE image is visible without cropping.
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return const Icon(Icons.broken_image,
@@ -37,7 +32,7 @@ class HeroBanner extends StatelessWidget {
                 },
               ),
             ),
-            // Gradient overlay for text readability
+            // 2. Gradient overlay
             Container(
               height: 100,
               decoration: BoxDecoration(
@@ -48,6 +43,7 @@ class HeroBanner extends StatelessWidget {
                 ),
               ),
             ),
+            // 3. Title
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
@@ -59,6 +55,24 @@ class HeroBanner extends StatelessWidget {
                 ),
               ),
             ),
+            // 4. NEW: Lock Icon (Top Right)
+            if (content.isLocked)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54, // Semi-transparent background
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

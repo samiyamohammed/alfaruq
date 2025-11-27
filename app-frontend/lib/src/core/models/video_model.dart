@@ -1,4 +1,5 @@
 // lib/src/core/models/video_model.dart
+
 class Video {
   final String id;
   final String title;
@@ -8,7 +9,6 @@ class Video {
   final String uploadDate;
   final String description;
 
-  // THE FIX IS HERE: We've added the 'const' keyword to the constructor.
   const Video({
     required this.id,
     required this.title,
@@ -18,4 +18,20 @@ class Video {
     required this.uploadDate,
     required this.description,
   });
+
+  // --- NEW: Factory to parse the API JSON ---
+  factory Video.fromJson(Map<String, dynamic> json) {
+    return Video(
+      id: json['videoId'] ?? '',
+      title: json['title'] ?? 'No Title',
+      thumbnailUrl: json['thumbnailUrl'] ?? '',
+      // JSON doesn't have channelName, defaulting to your channel
+      channelName: 'Alfaruk Multimedia',
+      // JSON doesn't have viewCount, leaving empty or setting a default
+      viewCount: '',
+      // Maps 'publishedAt' to 'uploadDate'
+      uploadDate: json['publishedAt'] ?? '',
+      description: json['description'] ?? '',
+    );
+  }
 }

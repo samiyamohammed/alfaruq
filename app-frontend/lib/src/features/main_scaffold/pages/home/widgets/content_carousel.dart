@@ -1,17 +1,17 @@
+// lib/src/features/main_scaffold/pages/home/widgets/content_carousel.dart
 import 'package:al_faruk_app/src/core/models/content_item_model.dart';
 import 'package:flutter/material.dart';
 
 class ContentCarousel extends StatelessWidget {
   final String title;
   final List<ContentItem> items;
-  // 1. ADD THIS CALLBACK
   final Function(ContentItem item)? onItemTap;
 
   const ContentCarousel({
     super.key,
     required this.title,
     required this.items,
-    this.onItemTap, // 2. ADD TO CONSTRUCTOR
+    this.onItemTap,
   });
 
   @override
@@ -31,7 +31,7 @@ class ContentCarousel extends StatelessWidget {
             ),
           ),
         SizedBox(
-          height: 160, // Adjust height as needed
+          height: 160,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             scrollDirection: Axis.horizontal,
@@ -40,7 +40,6 @@ class ContentCarousel extends StatelessWidget {
             itemBuilder: (context, index) {
               final item = items[index];
 
-              // 3. WRAP THE CARD IN INKWELL/GESTURE DETECTOR
               return GestureDetector(
                 onTap: () {
                   if (onItemTap != null) {
@@ -48,7 +47,7 @@ class ContentCarousel extends StatelessWidget {
                   }
                 },
                 child: Container(
-                  width: 110, // Adjust width as needed
+                  width: 110,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     image: DecorationImage(
@@ -57,31 +56,55 @@ class ContentCarousel extends StatelessWidget {
                     ),
                     color: Colors.grey[900],
                   ),
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.black87, Colors.transparent],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
+                  // Changed child to Stack to allow positioning the Lock icon
+                  child: Stack(
+                    children: [
+                      // Text Overlay
+                      Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.black87, Colors.transparent],
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                            ),
+                            borderRadius: BorderRadius.vertical(
+                                bottom: Radius.circular(8)),
+                          ),
+                          child: Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                        borderRadius:
-                            BorderRadius.vertical(bottom: Radius.circular(8)),
                       ),
-                      child: Text(
-                        item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
+                      // NEW: Lock Icon
+                      if (item.isLocked)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.lock,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               );

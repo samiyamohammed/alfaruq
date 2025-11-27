@@ -1,5 +1,6 @@
 // lib/src/features/player/screens/content_player_screen.dart
 
+import 'dart:ui'; // For image filter (blur)
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/data/content_details_provider.dart';
 import 'package:chewie/chewie.dart';
@@ -11,7 +12,6 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 class ContentPlayerScreen extends ConsumerStatefulWidget {
   final String contentId;
-  // Pass related movies here (from Home Page) to show them under the player for Movies
   final List<FeedItem> relatedContent;
 
   const ContentPlayerScreen({
@@ -29,7 +29,6 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
 
-  // Playlist Management
   List<FeedItem> _playlist = [];
   int _currentIndex = 0;
   bool _isPlayerInitialized = false;
@@ -38,14 +37,13 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    WakelockPlus.enable(); // Keep screen awake
+    WakelockPlus.enable();
   }
 
   @override
   void dispose() {
     _disposePlayer();
     WakelockPlus.disable();
-    // Force portrait when exiting the player screen
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
@@ -61,9 +59,10 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
 
   Future<void> _initializePlayer(String videoUrl) async {
     _disposePlayer();
-    setState(() => _isPlayerInitialized = false);
+    if (mounted) setState(() => _isPlayerInitialized = false);
 
     try {
+      debugPrint("🎥 Initializing: $videoUrl");
       _videoController = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
       await _videoController!.initialize();
 
@@ -71,26 +70,26 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
         videoPlayerController: _videoController!,
         autoPlay: true,
         looping: false,
-        aspectRatio: 16 / 9,
+        aspectRatio: _videoController!.value.aspectRatio > 0
+            ? _videoController!.value.aspectRatio
+            : 16 / 9,
         allowedScreenSleep: false,
-        // Disable Chewie's default full screen button if it conflicts with UI
-        // allowFullScreen: true,
         errorBuilder: (context, errorMessage) {
           return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'Video Error: $errorMessage',
-                style: const TextStyle(color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 40),
+                const SizedBox(height: 10),
+                Text(errorMessage, style: const TextStyle(color: Colors.white)),
+              ],
             ),
           );
         },
         materialProgressColors: ChewieProgressColors(
-          playedColor: Theme.of(context).colorScheme.primary,
-          handleColor: Theme.of(context).colorScheme.secondary,
-          backgroundColor: Colors.grey,
+          playedColor: const Color(0xFFD4AF37), // Gold
+          handleColor: Colors.white,
+          backgroundColor: Colors.grey.withOpacity(0.5),
           bufferedColor: Colors.white24,
         ),
       );
@@ -98,20 +97,23 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
       _videoController!.addListener(() {
         if (_videoController!.value.isInitialized &&
             !_videoController!.value.isPlaying &&
+            _videoController!.value.duration > Duration.zero &&
             _videoController!.value.position >=
                 _videoController!.value.duration) {
           _playNext();
         }
       });
 
-      if (mounted) {
-        setState(() => _isPlayerInitialized = true);
-      }
+      if (mounted) setState(() => _isPlayerInitialized = true);
     } catch (e) {
-      debugPrint("Error initializing video: $e");
+      debugPrint("🛑 Error: $e");
       if (mounted) {
+        setState(() => _isPlayerInitialized = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to play video: $e')),
+          SnackBar(
+            content: Text('Unable to play: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -122,17 +124,13 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
       final nextIndex = _currentIndex + 1;
       final nextItem = _playlist[nextIndex];
 
-      if (nextItem.videoUrl != null) {
-        setState(() => _currentIndex = nextIndex);
-        _initializePlayer(nextItem.videoUrl!);
+      setState(() => _currentIndex = nextIndex);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Up Next: ${nextItem.title}'),
-            duration: const Duration(seconds: 3),
-            backgroundColor: Colors.black87,
-          ),
-        );
+      // Check if the next item is locked
+      if (nextItem.isLocked) {
+        _disposePlayer(); // Stop current player so the Lock UI shows up
+      } else if (nextItem.videoUrl != null) {
+        _initializePlayer(nextItem.videoUrl!);
       }
     }
   }
@@ -151,14 +149,17 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
         }
       }
       _playlist = allEpisodes;
-      if (_playlist.isNotEmpty && _playlist[0].videoUrl != null) {
-        _initializePlayer(_playlist[0].videoUrl!);
-      }
     } else {
       _isSeries = false;
       _playlist = [rootItem];
-      if (rootItem.videoUrl != null) {
-        _initializePlayer(rootItem.videoUrl!);
+    }
+
+    // Attempt to play the first item
+    if (_playlist.isNotEmpty) {
+      final firstItem = _playlist[0];
+      // Only play if NOT locked and has URL
+      if (!firstItem.isLocked && firstItem.videoUrl != null) {
+        _initializePlayer(firstItem.videoUrl!);
       }
     }
   }
@@ -166,195 +167,335 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final asyncContent = ref.watch(contentDetailsProvider(widget.contentId));
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Colors derived from theme
+    final bgColor = theme.scaffoldBackgroundColor;
+    final surfaceColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final primaryText = isDark ? Colors.white : Colors.black87;
+    final goldColor = const Color(0xFFD4AF37);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: bgColor,
       body: SafeArea(
         child: asyncContent.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => Center(
-              child: Text('Error: $err',
-                  style: const TextStyle(color: Colors.white))),
+          error: (err, stack) => Center(child: Text('Error: $err')),
           data: (content) {
-            if (_playlist.isEmpty) {
-              _preparePlaylist(content);
-            }
+            if (_playlist.isEmpty) _preparePlaylist(content);
 
-            final List<FeedItem> listItems =
-                _isSeries ? _playlist : widget.relatedContent;
-
-            final currentPlayingItem =
+            final listItems = _isSeries ? _playlist : widget.relatedContent;
+            final currentItem =
                 _playlist.isNotEmpty && _currentIndex < _playlist.length
                     ? _playlist[_currentIndex]
                     : content;
 
             return Column(
               children: [
-                // --- 1. VIDEO PLAYER WITH BACK BUTTON ---
+                // --- 1. VIDEO PLAYER AREA ---
                 Stack(
                   children: [
                     AspectRatio(
                       aspectRatio: 16 / 9,
                       child: Container(
                         color: Colors.black,
-                        child: _isPlayerInitialized && _chewieController != null
-                            ? Chewie(controller: _chewieController!)
-                            : const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    CircularProgressIndicator(),
-                                    SizedBox(height: 10),
-                                    Text('Loading Stream...',
-                                        style: TextStyle(color: Colors.white54))
-                                  ],
-                                ),
-                              ),
+                        // CHECK IF LOCKED FIRST
+                        child: currentItem.isLocked
+                            ? _buildLockedScreen(goldColor)
+                            : _isPlayerInitialized && _chewieController != null
+                                ? Chewie(controller: _chewieController!)
+                                : const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFFD4AF37),
+                                    ),
+                                  ),
                       ),
                     ),
-                    // THE NEW BACK BUTTON
+                    // Glass-morphism Back Button
                     Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon:
-                              const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
+                      top: 12,
+                      left: 12,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                          child: Container(
+                            height: 40,
+                            width: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.arrow_back,
+                                  color: Colors.white, size: 20),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
 
-                // --- 2. INFO SECTION ---
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.grey[900],
-                  width: double.infinity,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currentPlayingItem.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _isSeries
-                            ? '${content.title} - Episode ${_currentIndex + 1}'
-                            : 'Movie',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontSize: 14),
-                      ),
-                      if (content.description.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          content.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // --- 3. PLAYLIST / RELATED ---
+                // --- 2. INFO & PLAYLIST ---
                 Expanded(
                   child: Container(
-                    color: Colors.black,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: listItems.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = listItems[index];
-                        final isPlaying = _isSeries && index == _currentIndex;
+                    color: bgColor,
+                    child: ListView(
+                      children: [
+                        // A. CURRENTLY PLAYING INFO CARD
+                        Container(
+                          margin: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: surfaceColor,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: goldColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                          color: goldColor, width: 1),
+                                    ),
+                                    child: Text(
+                                      currentItem.isLocked
+                                          ? "LOCKED"
+                                          : "NOW PLAYING",
+                                      style: TextStyle(
+                                        color: goldColor,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (_isSeries)
+                                    Text(
+                                      "Episode ${_currentIndex + 1}",
+                                      style: TextStyle(
+                                        color: theme.hintColor,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                currentItem.title,
+                                style: TextStyle(
+                                  color: primaryText,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.2,
+                                ),
+                              ),
+                              if (content.description.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  content.description,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: primaryText.withOpacity(0.7),
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
 
-                        return ListTile(
-                          onTap: () {
-                            if (_isSeries) {
-                              if (item.videoUrl != null) {
-                                setState(() => _currentIndex = index);
-                                _initializePlayer(item.videoUrl!);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'No video available for this episode')),
-                                );
-                              }
-                            } else {
-                              Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => ContentPlayerScreen(
+                        // B. SECTION HEADER
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Text(
+                            _isSeries ? "All Episodes" : "Related Content",
+                            style: TextStyle(
+                              color: primaryText,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // C. LIST OF VIDEOS
+                        ListView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemCount: listItems.length,
+                          itemBuilder: (context, index) {
+                            final item = listItems[index];
+                            final isPlaying =
+                                _isSeries && index == _currentIndex;
+
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isPlaying
+                                    ? goldColor.withOpacity(0.1)
+                                    : surfaceColor,
+                                borderRadius: BorderRadius.circular(8),
+                                border: isPlaying
+                                    ? Border(
+                                        left: BorderSide(
+                                            color: goldColor, width: 4))
+                                    : null,
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () {
+                                    if (_isSeries) {
+                                      setState(() => _currentIndex = index);
+                                      // If locked, dispose player (UI updates to lock screen)
+                                      // If not locked, play video
+                                      if (item.isLocked) {
+                                        _disposePlayer();
+                                      } else if (item.videoUrl != null) {
+                                        _initializePlayer(item.videoUrl!);
+                                      }
+                                    } else {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ContentPlayerScreen(
                                             contentId: item.id,
                                             relatedContent:
                                                 widget.relatedContent,
-                                          )));
-                            }
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Row(
+                                      children: [
+                                        // Thumbnail
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          child: SizedBox(
+                                            width: 80,
+                                            height: 50,
+                                            child: Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                if (item.thumbnailUrl != null)
+                                                  Image.network(
+                                                      item.thumbnailUrl!,
+                                                      fit: BoxFit.cover)
+                                                else
+                                                  Container(
+                                                      color: Colors.grey[800]),
+                                                // Overlay icon if playing
+                                                if (isPlaying && !item.isLocked)
+                                                  Container(
+                                                    color: Colors.black
+                                                        .withOpacity(0.5),
+                                                    child: const Icon(
+                                                        Icons.equalizer,
+                                                        color: Colors.white,
+                                                        size: 20),
+                                                  ),
+                                                // Overlay icon if Locked
+                                                if (item.isLocked)
+                                                  Container(
+                                                    color: Colors.black
+                                                        .withOpacity(0.6),
+                                                    child: const Icon(
+                                                      Icons.lock,
+                                                      color: Colors.white70,
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Text Info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.title,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: isPlaying
+                                                      ? goldColor
+                                                      : primaryText,
+                                                  fontWeight: isPlaying
+                                                      ? FontWeight.bold
+                                                      : FontWeight.w500,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _isSeries
+                                                    ? 'Episode ${index + 1}'
+                                                    : 'Movie',
+                                                style: TextStyle(
+                                                  color: primaryText
+                                                      .withOpacity(0.5),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isPlaying && !item.isLocked)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                left: 8.0),
+                                            child: Icon(Icons.play_circle_fill,
+                                                color: goldColor, size: 24),
+                                          ),
+                                        if (item.isLocked && !isPlaying)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                left: 8.0),
+                                            child: Icon(Icons.lock_outline,
+                                                color: theme.disabledColor,
+                                                size: 20),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
                           },
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          tileColor:
-                              isPlaying ? Colors.grey[800] : Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          leading: Container(
-                            width: 100,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[900],
-                              borderRadius: BorderRadius.circular(4),
-                              image: item.thumbnailUrl != null
-                                  ? DecorationImage(
-                                      image: NetworkImage(item.thumbnailUrl!),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                            ),
-                            child: item.thumbnailUrl == null
-                                ? const Icon(Icons.movie, color: Colors.white24)
-                                : null,
-                          ),
-                          title: Text(
-                            item.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isPlaying
-                                  ? Theme.of(context).colorScheme.secondary
-                                  : Colors.white,
-                              fontWeight:
-                                  isPlaying ? FontWeight.bold : FontWeight.w500,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            _isSeries ? 'Episode ${index + 1}' : 'Movie',
-                            style: const TextStyle(
-                                color: Colors.white54, fontSize: 12),
-                          ),
-                          trailing: isPlaying
-                              ? const Icon(Icons.equalizer,
-                                  color: Colors.white, size: 20)
-                              : null,
-                        );
-                      },
+                        ),
+                        const SizedBox(height: 30),
+                      ],
                     ),
                   ),
                 ),
@@ -363,6 +504,99 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
           },
         ),
       ),
+    );
+  }
+
+  // --- UPDATED: Adaptive Locked Screen ---
+  Widget _buildLockedScreen(Color goldColor) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Define a threshold for "compact" height (e.g. portrait mode phone)
+        final isCompact = constraints.maxHeight < 250;
+
+        return Container(
+          color: Colors.black,
+          width: double.infinity,
+          height: double.infinity,
+          // Use less padding on smaller screens
+          padding: EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: isCompact ? 8 : 24,
+          ),
+          child: Center(
+            child: SingleChildScrollView(
+              // Prevents overflow if it still doesn't fit
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(isCompact ? 8 : 16),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: goldColor, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.lock,
+                      color: goldColor,
+                      size: isCompact ? 24 : 40,
+                    ),
+                  ),
+                  SizedBox(height: isCompact ? 8 : 16),
+                  Text(
+                    "Premium Content",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isCompact ? 16 : 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  SizedBox(height: isCompact ? 4 : 8),
+                  Text(
+                    "Locked. Please subscribe to watch.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: isCompact ? 12 : 14,
+                    ),
+                  ),
+                  SizedBox(height: isCompact ? 12 : 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text("Subscription flow not implemented yet."),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: goldColor,
+                      foregroundColor: Colors.black,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isCompact ? 20 : 32,
+                        vertical: isCompact ? 8 : 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: Text(
+                      "Unlock Now",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isCompact ? 12 : 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

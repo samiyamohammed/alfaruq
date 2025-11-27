@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_qiblah/flutter_qiblah.dart';
@@ -12,7 +13,9 @@ class QiblahPage extends StatefulWidget {
 }
 
 class _QiblahPageState extends State<QiblahPage> {
-  final _qiblahStream = FlutterQiblah.qiblahStream;
+  // We access the stream directly in the builder
+  final Stream<QiblahDirection> _qiblahStream = FlutterQiblah.qiblahStream;
+
   bool _isLoading = true;
   String? _errorMessage;
   bool _showCalibrationWarning = false;
@@ -24,9 +27,10 @@ class _QiblahPageState extends State<QiblahPage> {
   void initState() {
     super.initState();
     _locationName = "";
-    _initializeQiblah();
-    _getCurrentLocation();
+    // Run initialization logic in strict order
+    _initQiblahAndLocation();
 
+    // Show calibration hint after a few seconds
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
@@ -36,10 +40,61 @@ class _QiblahPageState extends State<QiblahPage> {
     });
   }
 
+  @override
+  void dispose() {
+    // FlutterQiblah handles its own stream cleanup, but good practice to ensure we are done.
+    FlutterQiblah().dispose();
+    super.dispose();
+  }
+
+  // --- FIX: Serialized Initialization Logic ---
+  Future<void> _initQiblahAndLocation() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Check Device Sensor Support FIRST
+      // Some phones do not have a Magnetometer. We must check this before anything else.
+      final sensorSupport = await FlutterQiblah.androidDeviceSensorSupport();
+
+      if (sensorSupport == false) {
+        if (mounted) {
+          setState(() {
+            _errorMessage =
+                "Your device does not have a compass sensor (Magnetometer).\nQiblah direction cannot be calculated.";
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 2. Check Permissions
+      final hasPermission = await _handleLocationPermission();
+      if (!hasPermission) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      // 3. Get Location Name (Optional, for UI only)
+      await _getCurrentLocation();
+
+      // 4. Finish Loading
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Failed to initialize compass: $e";
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      setState(() => _errorMessage = "Location services are disabled.");
+      setState(() =>
+          _errorMessage = "Location services are disabled. Please enable GPS.");
       return false;
     }
 
@@ -52,8 +107,8 @@ class _QiblahPageState extends State<QiblahPage> {
       }
     }
     if (permission == LocationPermission.deniedForever) {
-      setState(
-          () => _errorMessage = "Location permissions are permanently denied.");
+      setState(() => _errorMessage =
+          "Location permissions are permanently denied. Please enable them in settings.");
       return false;
     }
     return true;
@@ -61,44 +116,18 @@ class _QiblahPageState extends State<QiblahPage> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      final hasPermission = await _handleLocationPermission();
-      if (!hasPermission) return;
-
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition(
+          // Use low accuracy for speed, we just need general area for text
+          desiredAccuracy: LocationAccuracy.low);
       if (mounted) {
         setState(() {
           _locationName =
-              "Lat: ${position.latitude.toStringAsFixed(3)}, Lng: ${position.longitude.toStringAsFixed(3)}";
+              "Lat: ${position.latitude.toStringAsFixed(2)}, Lng: ${position.longitude.toStringAsFixed(2)}";
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _locationName = "Location unavailable");
-    }
-  }
-
-  Future<void> _initializeQiblah() async {
-    try {
-      final sensorSupport = await FlutterQiblah.androidDeviceSensorSupport();
-      if (sensorSupport == false) {
-        if (mounted)
-          setState(() {
-            _errorMessage = "Your device does not support compass sensor";
-            _isLoading = false;
-          });
-        return;
-      }
-      final hasPermission = await _handleLocationPermission();
-      if (!hasPermission) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-      if (mounted) setState(() => _isLoading = false);
-    } catch (error) {
-      if (mounted)
-        setState(() {
-          _errorMessage = "Failed to initialize Qiblah compass: $error";
-          _isLoading = false;
-        });
+      // Ignore location error for UI text, it's not critical for Qiblah math
+      if (mounted) setState(() => _locationName = "");
     }
   }
 
@@ -112,10 +141,9 @@ class _QiblahPageState extends State<QiblahPage> {
     final backgroundColor = theme.scaffoldBackgroundColor;
     final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
 
-    String displayLocation = _locationName;
-    if (displayLocation.isEmpty) displayLocation = l10n.locationFetching;
-    if (displayLocation == "Location unavailable")
-      displayLocation = l10n.locationUnavailable;
+    String displayLocation =
+        _locationName.isNotEmpty ? _locationName : l10n.locationFetching;
+    if (_errorMessage != null) displayLocation = "";
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -155,12 +183,23 @@ class _QiblahPageState extends State<QiblahPage> {
       stream: _qiblahStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: _goldColor));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(color: _goldColor),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.alignDevice, // "Waiting for sensor..."
+                  style: TextStyle(color: textColor),
+                )
+              ],
+            ),
+          );
         }
 
         if (snapshot.hasError) {
-          return _buildErrorWidget(snapshot.error.toString(), l10n);
+          return _buildErrorWidget("Compass Error: ${snapshot.error}", l10n);
         }
 
         if (snapshot.hasData) {
@@ -168,14 +207,11 @@ class _QiblahPageState extends State<QiblahPage> {
           final angle = (qiblahDirection.qiblah) * (math.pi / 180) * -1;
 
           return SingleChildScrollView(
-            // --- FIX START: FORCE FULL WIDTH ---
             child: SizedBox(
-              width: size
-                  .width, // This forces the column to take full screen width
+              width: size.width,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment:
-                    CrossAxisAlignment.center, // Ensure items are centered
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 20),
                   Padding(
@@ -266,17 +302,20 @@ class _QiblahPageState extends State<QiblahPage> {
                   const SizedBox(height: 20),
 
                   if (_showCalibrationWarning)
-                    Text(
-                      l10n.calibrateWarning,
-                      style: TextStyle(
-                          color: textColor.withOpacity(0.6), fontSize: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                      child: Text(
+                        l10n.calibrateWarning,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: textColor.withOpacity(0.6), fontSize: 12),
+                      ),
                     ),
 
                   const SizedBox(height: 20),
                 ],
               ),
             ),
-            // --- FIX END ---
           );
         }
 
@@ -292,23 +331,26 @@ class _QiblahPageState extends State<QiblahPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: _goldColor, size: 60),
+            Icon(
+                errorMessage.contains("sensor")
+                    ? Icons.do_not_disturb_on_total_silence
+                    : Icons.error_outline,
+                color: _goldColor,
+                size: 60),
             const SizedBox(height: 16),
             Text(
               errorMessage,
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyLarge?.color),
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () async {
-                setState(() {
-                  _isLoading = true;
-                  _errorMessage = null;
-                });
-                await _initializeQiblah();
-                await _getCurrentLocation();
+              onPressed: () {
+                // Re-run the full init sequence
+                _initQiblahAndLocation();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _goldColor,

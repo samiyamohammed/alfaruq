@@ -1,80 +1,154 @@
+import 'dart:ui';
 import 'package:al_faruk_app/src/core/services/notification_service.dart';
 import 'package:al_faruk_app/src/core/services/service_providers.dart';
 import 'package:al_faruk_app/src/core/theme/app_theme.dart';
 import 'package:al_faruk_app/src/core/theme/theme_provider.dart';
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/auth/screens/auth_gate.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
-
-// Localization Imports
+import 'package:firebase_core/firebase_core.dart';
+import 'package:al_faruk_app/src/core/services/fcm_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/localization/afaan_oromo_localizations.dart';
 
 const dailyNotificationTask = "scheduleDailyPrayerNotifications";
+const uniqueTaskName = "daily-prayer-notification-scheduler";
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
-  // --- CHANGE #1: ADDED LOGS TO SEE IF THIS EVER RUNS ---
-  // This is the most important log. If you don't see this in your
-  // debug console, the OS is blocking the task from starting.
-  print("--- [BACKGROUND TASK]: callbackDispatcher started! ---");
-
   Workmanager().executeTask((task, inputData) async {
-    print(
-        "--- [BACKGROUND TASK]: Workmanager().executeTask called for task: $task ---");
+    DartPluginRegistrant.ensureInitialized();
+    WidgetsFlutterBinding.ensureInitialized();
+    debugPrint("🤠 [BG-TASK] Starting Background Isolate");
 
-    if (task == dailyNotificationTask) {
-      // We need to re-initialize services in the background isolate
-      await settingsService.loadSettings();
-      await NotificationService.scheduleDailyPrayerNotifications();
+    try {
+      if (task == dailyNotificationTask) {
+        debugPrint("🤠 [BG-TASK] Running Schedule Logic...");
+        await NotificationService.init(isBackground: true);
+        await NotificationService.scheduleDailyPrayerNotifications();
+      }
+      debugPrint("🤠 [BG-TASK] Finished Successfully");
+      return Future.value(true);
+    } catch (err, stack) {
+      debugPrint("💀 [BG-TASK] ERROR: $err");
+      debugPrint(stack.toString());
+      return Future.value(false);
     }
-    return Future.value(true);
   });
+}
+
+Future<void> _requestAllPermissions() async {
+  await [
+    Permission.location,
+    Permission.notification,
+    Permission.scheduleExactAlarm,
+  ].request();
+}
+
+Future<void> _updateAndCacheLocation() async {
+  try {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return;
+    }
+    final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('latitude', position.latitude);
+    await prefs.setDouble('longitude', position.longitude);
+    debugPrint(
+        "✅ Location cached: ${position.latitude}, ${position.longitude}");
+  } catch (e) {
+    debugPrint("Error caching location: $e");
+  }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await Firebase.initializeApp();
   await dotenv.load(fileName: "assets/.env");
+
+  // 1. Load General Settings
   await settingsService.loadSettings();
-  await NotificationService.init();
+
+  // 2. Load Theme Settings (Fix for Reset Issue)
+  await themeManager.loadSettings();
+
+  await _requestAllPermissions();
+
+  await NotificationService.init(isBackground: false);
+  await _updateAndCacheLocation();
 
   if (!kIsWeb) {
-    Workmanager().initialize(
-      callbackDispatcher,
-      isInDebugMode: true,
-    );
-
-    // --- CHANGE #2: SWITCHED TO A ONE-OFF TASK FOR IMMEDIATE TESTING ---
-    // Instead of waiting 12 hours, this will force the background task
-    // to run about one minute after you start the app.
-    Workmanager().registerOneOffTask(
-      "debug-task-1", // A unique name for the one-time task
-      dailyNotificationTask,
-      constraints: Constraints(
-        networkType: NetworkType.connected,
-      ),
-      initialDelay: const Duration(minutes: 1),
-    );
+    try {
+      await Workmanager().initialize(
+        callbackDispatcher,
+        isInDebugMode: kDebugMode,
+      );
+      await Workmanager().cancelByUniqueName(uniqueTaskName);
+      await Workmanager().registerPeriodicTask(
+        uniqueTaskName,
+        dailyNotificationTask,
+        frequency: kDebugMode
+            ? const Duration(minutes: 15)
+            : const Duration(hours: 12),
+        constraints: Constraints(
+          networkType: NetworkType.notRequired,
+          requiresBatteryNotLow: false,
+        ),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+      );
+      debugPrint("✅ WorkManager Configured");
+    } catch (e) {
+      debugPrint("⚠️ WorkManager Error: $e");
+    }
   }
 
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends ConsumerWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initFCM();
+    });
+  }
+
+  Future<void> _initFCM() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final fcmService = FCMService(dio: dio);
+      await fcmService.initialize(ref);
+    } catch (e) {
+      debugPrint("⛔️ FCM Error: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsServiceProvider);
+
+    // Watch the theme manager to rebuild when theme changes
     final theme = ref.watch(themeManagerProvider);
 
     return MaterialApp(
@@ -82,6 +156,7 @@ class MyApp extends ConsumerWidget {
       title: 'AL FARUK',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
+      // Use the theme from the manager
       themeMode: theme.themeMode,
       locale: settings.currentLocale,
       localizationsDelegates: const [
@@ -92,9 +167,9 @@ class MyApp extends ConsumerWidget {
         AfaanOromoLocalizationsDelegate(),
       ],
       supportedLocales: const [
-        Locale('en'), // English
-        Locale('am'), // Amharic
-        Locale('om'), // Afaan Oromo
+        Locale('en'),
+        Locale('am'),
+        Locale('om'),
       ],
       home: const AuthGate(),
       debugShowCheckedModeBanner: false,

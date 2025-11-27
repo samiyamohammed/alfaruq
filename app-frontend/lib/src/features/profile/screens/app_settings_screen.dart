@@ -1,4 +1,4 @@
-import 'package:al_faruk_app/src/core/services/service_providers.dart'; // Import where settingsServiceProvider is defined
+import 'package:al_faruk_app/src/core/services/service_providers.dart';
 import 'package:al_faruk_app/src/core/services/settings_service.dart';
 import 'package:al_faruk_app/src/core/theme/theme_provider.dart';
 import 'package:al_faruk_app/src/features/profile/screens/privacy_policy_screen.dart';
@@ -14,8 +14,7 @@ class AppSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
-  // Use the global themeManager for initial state
-  ThemeMode _selectedTheme = themeManager.themeMode;
+  // No local state needed for theme anymore.
 
   void _showLanguageSelectionDialog(
       BuildContext context, SettingsService settingsService) {
@@ -45,10 +44,12 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. WATCH THE SETTINGS SERVICE VIA RIVERPOD
+    // 1. WATCH SETTINGS
     final settingsService = ref.watch(settingsServiceProvider);
+    
+    // 2. WATCH THEME (Directly watch the provider)
+    final themeManager = ref.watch(themeManagerProvider);
 
-    // 2. SAFE LOCALIZATION ACCESS
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
@@ -61,7 +62,6 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
           ListTile(
             leading: const Icon(Icons.language_outlined),
             title: Text(l10n?.language ?? 'Language'),
-            // Display the name of the currently selected language
             subtitle: Text(settingsService
                     .availableLanguages[settingsService.localeCode] ??
                 'English'),
@@ -76,7 +76,6 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          // ... inside _AppSettingsScreenState build method ...
 
           Padding(
             padding:
@@ -96,13 +95,11 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
                     label: Text('System'),
                     icon: Icon(Icons.sync)),
               ],
-              selected: {_selectedTheme},
+              // Use the actual current value from the provider
+              selected: {themeManager.themeMode},
               onSelectionChanged: (Set<ThemeMode> newSelection) {
-                setState(() {
-                  _selectedTheme = newSelection.first;
-                  // 2. USE THE NEW METHOD HERE
-                  themeManager.setThemeMode(_selectedTheme);
-                });
+                // Call the method that saves to SharedPreferences
+                themeManager.setThemeMode(newSelection.first);
               },
             ),
           ),

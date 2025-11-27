@@ -55,6 +55,7 @@ class HomePage extends ConsumerWidget {
                 id: item.id,
                 title: item.title,
                 thumbnailUrl: item.thumbnailUrl ?? '',
+                isLocked: item.isLocked,
               );
             }).toList();
           }
@@ -83,6 +84,7 @@ class HomePage extends ConsumerWidget {
                       id: featuredMovie.id,
                       title: featuredMovie.title,
                       thumbnailUrl: featuredMovie.thumbnailUrl ?? '',
+                      isLocked: featuredMovie.isLocked,
                     ),
                   ),
                 )

@@ -1,3 +1,4 @@
+//notifications screen
 import 'package:al_faruk_app/src/features/prayer_times/models/prayer_time_model.dart';
 import 'package:al_faruk_app/src/features/prayer_times/screens/notification_settings_screen.dart';
 import 'package:al_faruk_app/src/features/prayer_times/widgets/prayer_time_card.dart';

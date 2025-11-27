@@ -13,11 +13,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _agreeToTerms = false;
 
-  // --- ADDED: State variables for password visibility ---
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
-  final _fullNameController = TextEditingController();
+  // --- UPDATED: Split controllers ---
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -25,7 +26,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   void dispose() {
-    _fullNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -45,7 +47,8 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         return;
       }
       ref.read(registrationControllerProvider.notifier).registerUser(
-            fullName: _fullNameController.text,
+            firstName: _firstNameController.text, // Pass separately
+            lastName: _lastNameController.text, // Pass separately
             email: _emailController.text,
             phoneNumber: _phoneController.text,
             password: _passwordController.text,
@@ -87,12 +90,24 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // --- UPDATED: First Name Field ---
               TextFormField(
-                controller: _fullNameController,
-                decoration: const InputDecoration(labelText: 'Full Name'),
-                validator: (v) => v!.isEmpty ? 'Please enter your name' : null,
+                controller: _firstNameController,
+                decoration: const InputDecoration(labelText: 'First Name'),
+                validator: (v) =>
+                    v!.isEmpty ? 'Please enter your first name' : null,
               ),
               const SizedBox(height: 20),
+
+              // --- UPDATED: Last Name Field ---
+              TextFormField(
+                controller: _lastNameController,
+                decoration: const InputDecoration(labelText: 'Last Name'),
+                validator: (v) =>
+                    v!.isEmpty ? 'Please enter your last name' : null,
+              ),
+              const SizedBox(height: 20),
+
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Email Address'),
@@ -110,10 +125,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ),
               const SizedBox(height: 20),
 
-              // --- UPDATED: Password field ---
               TextFormField(
                 controller: _passwordController,
-                obscureText: _obscurePassword, // Use the state variable
+                obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   suffixIcon: IconButton(
@@ -133,10 +147,9 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               ),
               const SizedBox(height: 20),
 
-              // --- UPDATED: Confirm Password field ---
               TextFormField(
                 controller: _confirmPasswordController,
-                obscureText: _obscureConfirmPassword, // Use the state variable
+                obscureText: _obscureConfirmPassword,
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
                   suffixIcon: IconButton(

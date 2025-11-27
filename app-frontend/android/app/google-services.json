@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "619809373",
+    "project_id": "al-faruq",
+    "storage_bucket": "al-faruq.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:619809373:android:072a65e2d76391a04b9bb4",
+        "android_client_info": {
+          "package_name": "com.example.al_faruk_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5yR5Usp3WAUF1BaYsVk1t44SZGb60_uQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

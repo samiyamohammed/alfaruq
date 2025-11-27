@@ -1,24 +1,48 @@
 // lib/src/core/theme/app_theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // REQUIRED IMPORT
 
 // --- Theme State Management ---
-// This small class will manage and notify the app of theme changes.
 class ThemeManager with ChangeNotifier {
-  // Defaulting to System is usually better UX, but I kept Light to match your previous code.
-  ThemeMode _themeMode = ThemeMode.light;
+  // Default to System so it matches the user's phone settings
+  ThemeMode _themeMode = ThemeMode.system;
 
   ThemeMode get themeMode => _themeMode;
 
-  // 1. NEW METHOD: Allows setting specific modes (Light, Dark, System)
-  void setThemeMode(ThemeMode mode) {
+  /// 1. LOAD: Call this in main.dart before the app starts
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('theme_mode');
+
+    if (savedTheme == 'light') {
+      _themeMode = ThemeMode.light;
+    } else if (savedTheme == 'dark') {
+      _themeMode = ThemeMode.dark;
+    } else {
+      _themeMode = ThemeMode.system;
+    }
+    notifyListeners();
+  }
+
+  /// 2. SAVE: Saves the selection to storage
+  Future<void> setThemeMode(ThemeMode mode) async {
     if (_themeMode != mode) {
       _themeMode = mode;
-      notifyListeners();
+      notifyListeners(); // Update UI immediately
+
+      final prefs = await SharedPreferences.getInstance();
+      if (mode == ThemeMode.light) {
+        await prefs.setString('theme_mode', 'light');
+      } else if (mode == ThemeMode.dark) {
+        await prefs.setString('theme_mode', 'dark');
+      } else {
+        await prefs.setString('theme_mode', 'system');
+      }
     }
   }
 
-  // kept for backward compatibility if used elsewhere
+  // kept for backward compatibility
   void toggleTheme() {
     if (_themeMode == ThemeMode.light) {
       setThemeMode(ThemeMode.dark);
@@ -31,17 +55,17 @@ class ThemeManager with ChangeNotifier {
 class AppTheme {
   // --- Light Theme Colors ---
   static const Color primaryColor = Color(0xFF1A1A1A); // Dark charcoal
-  static const Color accentColor = Color(0xFFD4AF37);  // Gold
+  static const Color accentColor = Color(0xFFD4AF37); // Gold
   static const Color backgroundColor = Colors.white;
   static const Color hintColor = Colors.grey;
   static const Color errorColor = Colors.redAccent;
 
-  // --- Dark Theme Colors (NEW) ---
-  static const Color darkPrimaryColor = Colors.white; // Text color for dark mode
-  static const Color darkBackgroundColor = Color(0xFF121212); // Deep dark background
-  static const Color darkSurfaceColor = Color(0xFF1E1E1E); // Color for cards, app bars
+  // --- Dark Theme Colors ---
+  static const Color darkPrimaryColor = Colors.white;
+  static const Color darkBackgroundColor = Color(0xFF121212);
+  static const Color darkSurfaceColor = Color(0xFF1E1E1E);
 
-  // --- Light Theme (Existing) ---
+  // --- Light Theme ---
   static final ThemeData lightTheme = ThemeData(
     brightness: Brightness.light,
     scaffoldBackgroundColor: backgroundColor,
@@ -60,8 +84,7 @@ class AppTheme {
           color: primaryColor,
           fontSize: 20,
           fontWeight: FontWeight.bold,
-        )
-    ),
+        )),
     textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -94,7 +117,7 @@ class AppTheme {
     ),
   );
 
-  // --- Dark Theme (NEW) ---
+  // --- Dark Theme ---
   static final ThemeData darkTheme = ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: darkBackgroundColor,
@@ -113,21 +136,19 @@ class AppTheme {
           color: darkPrimaryColor,
           fontSize: 20,
           fontWeight: FontWeight.bold,
-        )
-    ),
+        )),
     textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: darkSurfaceColor,
     ),
-    elevatedButtonTheme: ElevatedButtonThemeData( // Keep buttons consistent
+    elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: primaryColor, // Using light primary for button bg
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
         padding: const EdgeInsets.symmetric(vertical: 16.0),
         textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     ),
-    // You can add dark theme specific input decorations if needed
   );
 }

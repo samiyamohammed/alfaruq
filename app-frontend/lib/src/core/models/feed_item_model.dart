@@ -8,8 +8,9 @@ class FeedItem {
   final String? videoUrl;
   final String? trailerUrl;
   final String type; // 'MOVIE', 'SERIES', 'SEASON', 'EPISODE'
-  final DateTime? createdAt; // Made nullable to be safe with nested items
-  final List<FeedItem> children; // NEW: Recursive list for Seasons/Episodes
+  final bool isLocked; // NEW
+  final DateTime? createdAt;
+  final List<FeedItem> children;
 
   const FeedItem({
     required this.id,
@@ -19,6 +20,7 @@ class FeedItem {
     this.videoUrl,
     this.trailerUrl,
     required this.type,
+    this.isLocked = false, // NEW: Default to false
     this.createdAt,
     this.children = const [],
   });
@@ -32,11 +34,10 @@ class FeedItem {
       videoUrl: json['videoUrl'] as String?,
       trailerUrl: json['trailerUrl'] as String?,
       type: json['type'] as String? ?? 'UNKNOWN',
-      // Parse date safely
+      isLocked: json['isLocked'] as bool? ?? false, // NEW: Parse from JSON
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'])
           : null,
-      // RECURSIVE MAPPING for Series -> Seasons -> Episodes
       children: json['children'] != null
           ? (json['children'] as List).map((c) => FeedItem.fromJson(c)).toList()
           : [],

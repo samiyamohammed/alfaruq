@@ -47,11 +47,15 @@ dependencies:
   video_player: ^2.10.1
   chewie: ^1.13.0
   wakelock_plus: ^1.4.0
+  firebase_core: ^4.2.1
+  firebase_messaging: ^16.0.4
+  youtube_explode_dart: ^3.0.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   generate: true
@@ -71,3 +75,10 @@ flutter:
     - assets/audio/tone.mp3
     - assets/icons/google.png
     - assets/icons/facebook.png
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/icon.png" # Path to your logo
+  min_sdk_android: 21 # Optional, good for modern apps
+  adaptive_icon_background: "#FFFFFF" # Hex color for Android adaptive background
+  adaptive_icon_foreground: "assets/images/icon.png" # Same as image_path usually
