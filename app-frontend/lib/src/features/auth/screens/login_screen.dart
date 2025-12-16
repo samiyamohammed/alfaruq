@@ -101,6 +101,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     ref.read(loginControllerProvider.notifier).signInWithGoogle();
   }
 
+  void _handleGuestLogin() {
+    // Triggers the guest token fetch and storage
+    ref.read(loginControllerProvider.notifier).loginAsGuest();
+  }
+
   void _showEmailLoginSheet() {
     // Reset provider to clear old errors
     ref.invalidate(loginControllerProvider);
@@ -118,6 +123,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final loginState = ref.watch(loginControllerProvider);
+
     // Global Error Listener
     ref.listen(loginControllerProvider, (previous, next) {
       next.whenOrNull(
@@ -134,6 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           }
         },
         data: (_) {
+          // Success Navigation for any login method (Google, Email, Guest)
           if (previous is AsyncLoading) {
             if (_isPopupOpen && Navigator.canPop(context)) {
               Navigator.pop(context);
@@ -166,7 +174,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
 
-          // 2. Heavy Gradient Overlay (Matches Design)
+          // 2. Heavy Gradient Overlay
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -175,7 +183,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 colors: [
                   Colors.black.withOpacity(0.1),
                   Colors.black.withOpacity(0.5),
-                  Colors.black.withOpacity(0.95), // Deep fade
+                  Colors.black.withOpacity(0.95),
                   Colors.black,
                 ],
                 stops: const [0.0, 0.4, 0.7, 1.0],
@@ -193,7 +201,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 children: [
                   const Spacer(flex: 3),
 
-                  // --- 3D Logo (Corrected Size) ---
+                  // --- 3D Logo ---
                   Center(
                     child: AnimatedBuilder(
                       animation: _logoAnimController,
@@ -204,8 +212,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         );
                       },
                       child: Image.asset(
-                        'assets/images/logo.png', // Ensure this is the flame icon
-                        height: 110, // FIXED: Matches the reference size
+                        'assets/images/logo.png',
+                        height: 110,
                         color: const Color(0xFFFDC34E),
                       ),
                     ),
@@ -213,7 +221,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                   const SizedBox(height: 20),
 
-                  // Title (Serif Font)
+                  // Title
                   const Text(
                     'Al-Faruk',
                     textAlign: TextAlign.center,
@@ -240,15 +248,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                   const Spacer(flex: 4),
 
-                  // --- Email Button (Gold) ---
+                  // --- Email Button ---
                   SizedBox(
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _showEmailLoginSheet,
+                      onPressed:
+                          loginState.isLoading ? null : _showEmailLoginSheet,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFDC34E),
                         foregroundColor: Colors.black,
-                        // FIXED: Boxier shape (4px radius)
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4)),
                         elevation: 0,
@@ -261,18 +269,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
                   const SizedBox(height: 16),
 
-                  // --- Google Button (Black with Border) ---
+                  // --- Google Button ---
                   Consumer(builder: (context, ref, _) {
                     return SizedBox(
                       height: 56,
                       child: OutlinedButton(
-                        onPressed: _handleGoogleSignIn,
+                        onPressed:
+                            loginState.isLoading ? null : _handleGoogleSignIn,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
-                          backgroundColor: Colors.black54, // Slight dark tint
+                          backgroundColor: Colors.black54,
                           side:
                               const BorderSide(color: Colors.white24, width: 1),
-                          // FIXED: Boxier shape (4px radius)
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(4)),
                         ),
@@ -300,17 +308,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Centered Skip
+                      // Centered Skip (Acts as Guest Login)
                       GestureDetector(
-                        onTap: () => Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                                builder: (c) => const MainScreen()),
-                            (route) => false),
-                        child: const Text('Skip',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500)),
+                        onTap: loginState.isLoading ? null : _handleGuestLogin,
+                        child: loginState.isLoading && !_isPopupOpen
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Skip',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500)),
                       ),
 
                       const Spacer(),
@@ -373,7 +387,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 }
 
-// --- Email Login Popup ---
+// --- Email Login Popup (Unchanged logic, just keeping it here for completeness) ---
 class _EmailLoginPopup extends ConsumerStatefulWidget {
   const _EmailLoginPopup();
 

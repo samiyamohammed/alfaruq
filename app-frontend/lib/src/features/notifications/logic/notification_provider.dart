@@ -5,6 +5,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// --- NEW HELPER PROVIDER ---
+// This provider triggers the fetch and allows the UI to watch the status (Loading/Error/Success)
+final notificationFetchProvider = FutureProvider.autoDispose<void>((ref) async {
+  final notifier = ref.read(notificationListProvider.notifier);
+  await notifier.fetchNotifications();
+});
+
 final unreadNotificationCountProvider = Provider<int>((ref) {
   final notifications = ref.watch(notificationListProvider);
   return notifications.where((n) => !n.isRead).length;
@@ -29,7 +36,6 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
       final response = await _dio.get('/notifications');
 
       if (response.statusCode == 200) {
-        // Handle "data": [...] structure if present, otherwise direct list
         final data =
             response.data is Map ? response.data['data'] : response.data;
 
@@ -39,21 +45,32 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
           _mergeNotifications(apiNotifications);
         }
       }
-    } catch (e) {
+    } on DioException catch (e) {
+      // --- FIX: DETECT GUEST ACCESS (403) ---
+      if (e.response?.statusCode == 403) {
+        // 1. Clear local data (Security: Guests shouldn't see old cached notifications)
+        state = [];
+        _clearPrefs();
+
+        // 2. Rethrow so the UI knows to show the Restricted Screen
+        rethrow;
+      }
+
+      // For other errors (offline, server error), we just print and keep cached data
       print("Error fetching notifications: $e");
+    } catch (e) {
+      print("Unexpected error: $e");
     }
   }
 
   // --- API: POST /notifications/{id}/read ---
   Future<void> markAsRead(String id) async {
-    // 1. Optimistic Update (UI updates instantly)
     state = [
       for (final n in state)
         if (n.id == id) n.copyWith(isRead: true) else n
     ];
     _saveToPrefs();
 
-    // 2. Call API
     try {
       await _dio.post('/notifications/$id/read');
     } catch (e) {
@@ -64,39 +81,31 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
   // --- API: POST /notifications/{id}/clear ---
   Future<void> clearNotification(String id) async {
     final previousState = state;
-
-    // 1. Optimistic Update
     state = state.where((n) => n.id != id).toList();
     _saveToPrefs();
 
-    // 2. Call API
     try {
       await _dio.post('/notifications/$id/clear');
     } catch (e) {
       print("Error clearing notification: $e");
-      // Optional: Revert if you want strict sync
-      // state = previousState;
     }
   }
 
   // --- API: POST /notifications/clear-all ---
   Future<void> clearAll() async {
     final previousState = state;
-
-    // 1. Optimistic Update
     state = [];
     _saveToPrefs();
 
-    // 2. Call API
     try {
       await _dio.post('/notifications/clear-all');
     } catch (e) {
       print("Error clearing all: $e");
-      state = previousState; // Revert on failure
+      state = previousState;
     }
   }
 
-  // Internal Logic to merge API data with local cache
+  // Internal Logic
   void _mergeNotifications(List<AppNotification> apiList) {
     List<AppNotification> localList = List.from(state);
     List<AppNotification> finalList = [];
@@ -104,7 +113,6 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
     for (var apiItem in apiList) {
       int existingIndex = localList.indexWhere((n) => n.id == apiItem.id);
 
-      // Fuzzy match for FCM vs API consistency
       if (existingIndex == -1) {
         existingIndex = localList.indexWhere((n) {
           final timeDiff =
@@ -117,7 +125,6 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
 
       if (existingIndex != -1) {
         final localItem = localList[existingIndex];
-        // Merge: Use API ID but keep Local Read Status if true
         final mergedItem =
             apiItem.copyWith(isRead: localItem.isRead || apiItem.isRead);
         finalList.add(mergedItem);
@@ -127,9 +134,7 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
       }
     }
 
-    // Add remaining local items (e.g. recent pushes not yet on server)
     finalList.addAll(localList);
-    // Sort Newest First
     finalList.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     state = finalList;
@@ -157,5 +162,10 @@ class NotificationNotifier extends StateNotifier<List<AppNotification>> {
       final List<dynamic> decodedData = jsonDecode(encodedData);
       state = decodedData.map((e) => AppNotification.fromJson(e)).toList();
     }
+  }
+
+  Future<void> _clearPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('saved_notifications');
   }
 }

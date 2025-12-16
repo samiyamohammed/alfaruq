@@ -17,6 +17,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+    
     <application
         android:label="Al Faruk"
         android:name="${applicationName}"
@@ -42,6 +53,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- *** ADD THIS BLOCK BELOW *** -->
+            <!-- This tells Android to open the app when app://alfaruq is called -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Matches: app://alfaruq/purchase-success -->
+                <data android:scheme="app" android:host="alfaruq" /> 
+            </intent-filter>
+            <!-- *** END ADDED BLOCK *** -->
+
         </activity>
 
         <meta-data
@@ -65,6 +88,7 @@
             android:exported="true" />
 
     </application>
+
 
     <queries>
         <intent>

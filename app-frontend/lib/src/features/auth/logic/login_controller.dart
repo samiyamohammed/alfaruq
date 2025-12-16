@@ -97,6 +97,23 @@ class LoginController extends Notifier<AsyncValue<void>> {
     }
   }
 
+  // --- 3. GUEST LOGIN (NEW) ---
+  Future<void> loginAsGuest() async {
+    state = const AsyncLoading();
+    final authRepository = ref.read(authRepositoryProvider);
+    final storageService = ref.read(secureStorageServiceProvider);
+
+    state = await AsyncValue.guard(() async {
+      // 1. Call Guest API to get token
+      final String guestToken = await authRepository.getGuestToken();
+
+      // 2. Save Token securely (this allows Dio AuthInterceptor to use it)
+      await storageService.saveAccessToken(guestToken);
+
+      // 3. Note: Guest users might not have a profile, so we don't invalidate user provider here
+    });
+  }
+
   // --- SAFE LOGOUT METHOD (FIXES THE CRASH) ---
 
   Future<void> logout(BuildContext context) async {
@@ -118,9 +135,6 @@ class LoginController extends Notifier<AsyncValue<void>> {
       }
 
       // 4. Reset ONLY the Login Controller
-      // We removed the profile invalidation here.
-      // Since the Profile Screen is being destroyed by the Navigator above,
-      // we don't need to refresh its data. Doing so causes the Red Screen.
       Future.delayed(const Duration(milliseconds: 200), () {
         ref.invalidateSelf();
       });

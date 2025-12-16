@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/payment/data/payment_controller.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +11,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 class ContentPlayerScreen extends ConsumerStatefulWidget {
   final String contentId;
-  final List<FeedItem> relatedContent; // Passed from Home (Movies list, Docs list, etc)
+  final List<FeedItem> relatedContent;
 
   const ContentPlayerScreen({
     super.key,
@@ -19,37 +20,63 @@ class ContentPlayerScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ContentPlayerScreen> createState() => _ContentPlayerScreenState();
+  ConsumerState<ContentPlayerScreen> createState() =>
+      _ContentPlayerScreenState();
 }
 
-class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
-  // Controllers
+class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
+    with WidgetsBindingObserver {
+  // --- Controllers ---
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
 
-  // State
+  // --- State ---
   bool _isPlayerInitialized = false;
   bool _isSeries = false;
   int _currentEpisodeIndex = 0;
   List<FeedItem> _playlist = [];
-  
-  // To track the item currently being displayed/played
+
+  // Track the ID being viewed to refresh correctly
   late String _currentContentId;
+
+  // --- UI Flags (The Brain) ---
+  bool _isCurrentItemLocked = false;
+  bool _isCurrentItemVideoMissing = false;
+
+  // Track payment return
+  bool _isReturningFromPayment = false;
 
   @override
   void initState() {
     super.initState();
-    WakelockPlus.enable(); // Keep screen on
+    WidgetsBinding.instance.addObserver(this);
+    WakelockPlus.enable();
     _currentContentId = widget.contentId;
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _disposePlayer();
     WakelockPlus.disable();
-    // Force portrait when exiting
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
+  }
+
+  // --- 1. HANDLE PAYMENT RETURN REFRESH ---
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isReturningFromPayment) {
+      print("🔄 User returned from payment...");
+      // Refresh this specific content
+      ref.invalidate(feedDetailsProvider(_currentContentId));
+      // Refresh the home/grid lists so the lock icon disappears there too
+      ref.invalidate(feedContentProvider);
+
+      setState(() {
+        _isReturningFromPayment = false;
+      });
+    }
   }
 
   void _disposePlayer() {
@@ -59,6 +86,7 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
     _chewieController = null;
   }
 
+  // --- 2. INITIALIZE PLAYER (Only called if safe) ---
   Future<void> _initializePlayer(String videoUrl) async {
     _disposePlayer();
     if (mounted) setState(() => _isPlayerInitialized = false);
@@ -71,29 +99,31 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
         videoPlayerController: _videoController!,
         autoPlay: true,
         looping: false,
-        aspectRatio: _videoController!.value.aspectRatio > 0 
-            ? _videoController!.value.aspectRatio 
+        aspectRatio: _videoController!.value.aspectRatio > 0
+            ? _videoController!.value.aspectRatio
             : 16 / 9,
         allowedScreenSleep: false,
         errorBuilder: (context, errorMessage) {
           return Center(
-            child: Text(errorMessage, style: const TextStyle(color: Colors.white)),
+            child:
+                Text(errorMessage, style: const TextStyle(color: Colors.white)),
           );
         },
         materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFFCFB56C), // Gold
+          playedColor: const Color(0xFFCFB56C),
           handleColor: Colors.white,
           backgroundColor: Colors.grey.withOpacity(0.5),
           bufferedColor: Colors.white24,
         ),
       );
 
-      // Listener for Auto-Play Next (Only for Series)
+      // Auto-play next episode listener
       _videoController!.addListener(() {
-        if (_isSeries && 
-            _videoController!.value.isInitialized && 
-            !_videoController!.value.isPlaying && 
-            _videoController!.value.position >= _videoController!.value.duration) {
+        if (_isSeries &&
+            _videoController!.value.isInitialized &&
+            !_videoController!.value.isPlaying &&
+            _videoController!.value.position >=
+                _videoController!.value.duration) {
           _playNextEpisode();
         }
       });
@@ -107,65 +137,132 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
 
   void _playNextEpisode() {
     if (_currentEpisodeIndex < _playlist.length - 1) {
-      final nextIndex = _currentEpisodeIndex + 1;
-      final nextEpisode = _playlist[nextIndex];
-
-      setState(() => _currentEpisodeIndex = nextIndex);
-
-      if (nextEpisode.isLocked) {
-        _disposePlayer(); // Show Lock Screen
-      } else if (nextEpisode.videoUrl != null) {
-        _initializePlayer(nextEpisode.videoUrl!);
-      }
+      setState(() {
+        _currentEpisodeIndex = _currentEpisodeIndex + 1;
+      });
+      _evaluateCurrentItem();
     }
   }
 
+  // --- 3. DATA SETUP ---
   void _setupContent(FeedItem item) {
-    // Determine if this is a Series or Single Video
-    if (item.type == 'SERIES' && item.children.isNotEmpty) {
+    if (item.type == 'SERIES') {
       _isSeries = true;
-      _playlist = item.children; // Episodes
-      
-      // Try to play first available episode
-      if (_playlist.isNotEmpty && !_playlist[0].isLocked && _playlist[0].videoUrl != null) {
-        if (!_isPlayerInitialized) _initializePlayer(_playlist[0].videoUrl!);
-      }
+      _playlist = item.children; // Can be empty
     } else {
       _isSeries = false;
-      _playlist = [item]; // Single Item Playlist
-      
-      if (!item.isLocked && item.videoUrl != null) {
-        if (!_isPlayerInitialized) _initializePlayer(item.videoUrl!);
-      }
+      _playlist = [item];
+    }
+    // Run the evaluation logic immediately
+    _evaluateCurrentItem();
+  }
+
+  // --- 4. CORE LOGIC: CHECK LOCK & URL ---
+  void _evaluateCurrentItem() {
+    // A. Empty Playlist Check
+    if (_playlist.isEmpty) {
+      _disposePlayer();
+      setState(() {
+        _isCurrentItemLocked = false;
+        _isCurrentItemVideoMissing = true;
+        _isPlayerInitialized = false;
+      });
+      return;
+    }
+
+    final currentItem = _playlist[_currentEpisodeIndex];
+
+    // B. LOCK CHECK (Priority 1)
+    // If locked, we show purchase UI immediately. We don't care if video exists yet.
+    if (currentItem.isLocked) {
+      _disposePlayer();
+      setState(() {
+        _isCurrentItemLocked = true;
+        _isCurrentItemVideoMissing = false;
+        _isPlayerInitialized = false;
+      });
+      return;
+    }
+
+    // C. VIDEO URL CHECK (Priority 2)
+    // If unlocked, but no video URL, handle gracefully.
+    if (currentItem.videoUrl == null || currentItem.videoUrl!.isEmpty) {
+      _disposePlayer();
+      setState(() {
+        _isCurrentItemLocked = false;
+        _isCurrentItemVideoMissing = true;
+        _isPlayerInitialized = false;
+      });
+      return;
+    }
+
+    // D. PLAY VIDEO (Priority 3)
+    // Unlocked AND has Video -> Play it.
+    setState(() {
+      _isCurrentItemLocked = false;
+      _isCurrentItemVideoMissing = false;
+    });
+
+    // Only re-initialize if we aren't already playing this specific URL
+    if (_videoController?.dataSource != currentItem.videoUrl) {
+      _initializePlayer(currentItem.videoUrl!);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Fetch details using the ID (Handling fresh data)
     final contentAsync = ref.watch(feedDetailsProvider(_currentContentId));
+
+    // Error Listener for Payment
+    ref.listen(paymentControllerProvider, (previous, next) {
+      if (next is AsyncError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text("Payment failed: ${next.error}"),
+              backgroundColor: Colors.red),
+        );
+      }
+    });
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B101D),
       body: SafeArea(
         child: contentAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
-          error: (err, stack) => Center(child: Text("Error: $err", style: const TextStyle(color: Colors.white))),
+          loading: () => const Center(
+              child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
+          error: (err, stack) => Center(
+              child: Text("Error: $err",
+                  style: const TextStyle(color: Colors.white))),
           data: (content) {
-            // Initialize Playlist Logic only once per content load
-            if (_playlist.isEmpty || _playlist.first.parentId != content.id && content.type == 'SERIES') {
-               _setupContent(content);
-            } else if (!_isSeries && _playlist.isEmpty) {
-               _setupContent(content);
+            // --- SYNC DATA LOGIC ---
+            // 1. If this is the first load OR we switched to a totally different series/movie
+            if (_playlist.isEmpty ||
+                (_isSeries &&
+                    _playlist.isNotEmpty &&
+                    _playlist.first.parentId != content.id)) {
+              _setupContent(content);
+            }
+            // 2. If it's a refresh (e.g. after payment), update the existing playlist
+            else {
+              if (content.type == 'SERIES') {
+                _playlist = content.children;
+              } else {
+                _playlist = [content];
+              }
+
+              // Use PostFrameCallback to safely trigger state changes during build
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _evaluateCurrentItem();
+              });
             }
 
-            final currentItem = _isSeries 
-                ? _playlist[_currentEpisodeIndex] 
+            final currentItem = _playlist.isNotEmpty
+                ? _playlist[_currentEpisodeIndex]
                 : content;
 
             return Column(
               children: [
-                // --- 1. PLAYER AREA ---
+                // --- PLAYER AREA ---
                 AspectRatio(
                   aspectRatio: 16 / 9,
                   child: Container(
@@ -173,16 +270,28 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        if (currentItem.isLocked)
-                          _buildLockedUI()
-                        else if (_isPlayerInitialized && _chewieController != null)
-                          Chewie(controller: _chewieController!)
-                        else
-                          const CircularProgressIndicator(color: Color(0xFFCFB56C)),
+                        // STATE A: Locked -> Show Buy Button
+                        if (_isCurrentItemLocked)
+                          _buildLockedUI(currentItem.id)
 
-                        // Back Button Overlay
+                        // STATE B: Missing Video -> Show Message
+                        else if (_isCurrentItemVideoMissing)
+                          _buildMissingVideoUI()
+
+                        // STATE C: Player Ready -> Show Video
+                        else if (_isPlayerInitialized &&
+                            _chewieController != null)
+                          Chewie(controller: _chewieController!)
+
+                        // STATE D: Loading
+                        else
+                          const CircularProgressIndicator(
+                              color: Color(0xFFCFB56C)),
+
+                        // Back Button (Always on top)
                         Positioned(
-                          top: 10, left: 10,
+                          top: 10,
+                          left: 10,
                           child: GestureDetector(
                             onTap: () => Navigator.pop(context),
                             child: Container(
@@ -191,7 +300,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
                                 color: Colors.black45,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.arrow_back, color: Colors.white),
+                              child: const Icon(Icons.arrow_back,
+                                  color: Colors.white),
                             ),
                           ),
                         ),
@@ -200,58 +310,48 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
                   ),
                 ),
 
-                // --- 2. INFO & RELATED CONTENT ---
+                // --- INFO AREA ---
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      // Title & Series Info
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  content.title,
-                                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                                ),
-                                if (_isSeries)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      "Playing: ${currentItem.title}",
-                                      style: const TextStyle(color: Color(0xFFCFB56C), fontSize: 14),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      Text(
+                        content.title,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold),
                       ),
-                      
+                      if (_isSeries)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            "Playing: ${currentItem.title}",
+                            style: const TextStyle(
+                                color: Color(0xFFCFB56C), fontSize: 14),
+                          ),
+                        ),
                       const SizedBox(height: 12),
-                      
-                      // Description
                       Text(
                         content.description,
-                        style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 13, height: 1.4),
                       ),
-
                       const Divider(color: Colors.white12, height: 32),
-
-                      // --- 3. DYNAMIC LIST (Episodes or Related) ---
                       Text(
-                        _isSeries ? "Episodes" : "Related ${content.type == 'DOCUMENTARY' ? 'Documentaries' : 'Movies'}",
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        _isSeries
+                            ? "Episodes"
+                            : "Related ${content.type == 'DOCUMENTARY' ? 'Documentaries' : 'Movies'}",
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
-
                       if (_isSeries)
                         _buildEpisodesList()
                       else
-                        _buildRelatedList(content.id), // Exclude current ID
+                        _buildRelatedList(content.id),
                     ],
                   ),
                 ),
@@ -266,6 +366,14 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
   // --- WIDGETS ---
 
   Widget _buildEpisodesList() {
+    if (_playlist.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Text("No episodes available yet.",
+            style: TextStyle(color: Colors.grey)),
+      );
+    }
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -279,26 +387,31 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
           onTap: () {
             setState(() {
               _currentEpisodeIndex = index;
+              // Resetting init state ensures loading spinner shows while switching
               _isPlayerInitialized = false;
             });
             _disposePlayer();
-            if (!episode.isLocked && episode.videoUrl != null) {
-              _initializePlayer(episode.videoUrl!);
-            }
+            _evaluateCurrentItem(); // Run logic for new selection
           },
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isPlaying ? const Color(0xFFCFB56C).withOpacity(0.1) : const Color(0xFF151E32),
+              color: isPlaying
+                  ? const Color(0xFFCFB56C).withOpacity(0.1)
+                  : const Color(0xFF151E32),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isPlaying ? const Color(0xFFCFB56C) : Colors.transparent
-              ),
+                  color:
+                      isPlaying ? const Color(0xFFCFB56C) : Colors.transparent),
             ),
             child: Row(
               children: [
                 Icon(
-                  isPlaying ? Icons.play_circle_fill : (episode.isLocked ? Icons.lock : Icons.play_circle_outline),
+                  isPlaying
+                      ? Icons.play_circle_fill
+                      : (episode.isLocked
+                          ? Icons.lock
+                          : Icons.play_circle_outline),
                   color: isPlaying ? const Color(0xFFCFB56C) : Colors.white54,
                 ),
                 const SizedBox(width: 12),
@@ -307,7 +420,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
                     episode.title,
                     style: TextStyle(
                       color: isPlaying ? const Color(0xFFCFB56C) : Colors.white,
-                      fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          isPlaying ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -324,11 +438,12 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
   }
 
   Widget _buildRelatedList(String currentId) {
-    // Filter out the current video from the related list passed from Home
-    final related = widget.relatedContent.where((i) => i.id != currentId).toList();
+    final related =
+        widget.relatedContent.where((i) => i.id != currentId).toList();
 
     if (related.isEmpty) {
-      return const Text("No related content found.", style: TextStyle(color: Colors.white38));
+      return const Text("No related content found.",
+          style: TextStyle(color: Colors.white38));
     }
 
     return ListView.separated(
@@ -340,20 +455,18 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
         final item = related[index];
         return GestureDetector(
           onTap: () {
-            // RELOAD SCREEN WITH NEW CONTENT
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
                 builder: (_) => ContentPlayerScreen(
                   contentId: item.id,
-                  relatedContent: widget.relatedContent, // Pass the same list
+                  relatedContent: widget.relatedContent,
                 ),
               ),
             );
           },
           child: Row(
             children: [
-              // Thumbnail
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
@@ -361,11 +474,11 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
                   width: 120,
                   height: 68,
                   fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(width: 120, height: 68, color: Colors.grey[900]),
+                  errorBuilder: (c, e, s) => Container(
+                      width: 120, height: 68, color: Colors.grey[900]),
                 ),
               ),
               const SizedBox(width: 12),
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,18 +487,23 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
                       item.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         if (item.isLocked) ...[
-                          const Icon(Icons.lock, color: Color(0xFFCFB56C), size: 12),
+                          const Icon(Icons.lock,
+                              color: Color(0xFFCFB56C), size: 12),
                           const SizedBox(width: 4),
                         ],
                         Text(
                           item.type,
-                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 11),
                         ),
                       ],
                     ),
@@ -399,34 +517,102 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen> {
     );
   }
 
-  Widget _buildLockedUI() {
+  // --- MISSING VIDEO UI ---
+  Widget _buildMissingVideoUI() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.lock_outline, color: Color(0xFFCFB56C), size: 50),
-          const SizedBox(height: 16),
-          const Text(
-            "Premium Content",
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "Subscribe to unlock this video",
-            style: TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Subscription Flow")));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFCFB56C),
-              foregroundColor: Colors.black,
+      child: Container(
+        color: Colors.black87,
+        width: double.infinity,
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.videocam_off, color: Colors.grey, size: 50),
+            SizedBox(height: 12),
+            Text(
+              "Video Unavailable",
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
-            child: const Text("Unlock Now"),
+            SizedBox(height: 4),
+            Text(
+              "This content is not yet available for streaming.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- LOCKED UI ---
+  Widget _buildLockedUI(String contentId) {
+    final paymentState = ref.watch(paymentControllerProvider);
+
+    return Center(
+      child: SingleChildScrollView(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          color: Colors.black87,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline,
+                  color: Color(0xFFCFB56C), size: 40),
+              const SizedBox(height: 8),
+              const Text(
+                "Premium Content",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Rent for 10 days to unlock.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 160,
+                height: 40,
+                child: ElevatedButton(
+                  onPressed: paymentState.isLoading
+                      ? null
+                      : () {
+                          setState(() => _isReturningFromPayment = true);
+                          ref
+                              .read(paymentControllerProvider.notifier)
+                              .buyContent(contentId);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFCFB56C),
+                    foregroundColor: Colors.black,
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: paymentState.isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.black, strokeWidth: 2))
+                      : const Text(
+                          "Rent Now",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
