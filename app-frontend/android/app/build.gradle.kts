@@ -59,6 +59,7 @@
 // dependencies {
 //     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 // }
+
 import java.util.Properties
 
 plugins {
@@ -108,6 +109,16 @@ android {
 
     buildTypes {
         release {
+            // --- ADD THESE LINES ---
+            // Enables code shrinking, obfuscation, and optimization
+            isMinifyEnabled = false
+            // Enables resource shrinking
+            isShrinkResources = false
+            // Links the ProGuard rules file
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+            // -----------------------
+
+            // Keep your existing signing config (using 'debug' key for testing release builds locally)
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -120,4 +131,5 @@ flutter {
 // --- FIX 2: ADD THE DESUGARING LIBRARY DEPENDENCY ---
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
 }

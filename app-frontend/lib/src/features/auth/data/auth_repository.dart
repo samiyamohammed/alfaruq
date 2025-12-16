@@ -1,4 +1,3 @@
-// lib/src/features/auth/data/auth_repository.dart
 import 'package:al_faruk_app/src/core/models/user_model.dart';
 import 'package:dio/dio.dart';
 import 'auth_models.dart';
@@ -46,10 +45,76 @@ class ChangePasswordException implements Exception {
   String toString() => message;
 }
 
+class SetPasswordException implements Exception {
+  final String message;
+  SetPasswordException(this.message);
+  @override
+  String toString() => message;
+}
+
 // --- REPOSITORY ---
 class AuthRepository {
   final Dio _dio;
   AuthRepository({required Dio dio}) : _dio = dio;
+
+  // --- GET PROFILE METHOD ---
+  Future<UserModel> getProfile() async {
+    try {
+      print("🔹 Fetching Profile...");
+      final response = await _dio.get('/auth/profile');
+      print("✅ Profile Fetched Successfully: ${response.data}");
+      return UserModel.fromJson(response.data);
+    } on DioException catch (e) {
+      print("🚨 PROFILE ERROR CODE: ${e.response?.statusCode}");
+      print("🚨 PROFILE ERROR DATA: ${e.response?.data}");
+
+      if (e.response != null && e.response!.data != null) {
+        final dynamic msg = e.response!.data['message'];
+        final String errorMessage = msg is List
+            ? msg.join('\n')
+            : msg?.toString() ?? 'Failed to load profile.';
+        throw ProfileException(errorMessage);
+      } else {
+        throw ProfileException('Network error. Please check your connection.');
+      }
+    } catch (e) {
+      print("🚨 UNEXPECTED ERROR: $e");
+      throw ProfileException(
+          'An unexpected error occurred while fetching your profile.');
+    }
+  }
+
+  // --- SET PASSWORD METHOD (UPDATED TO PATCH) ---
+  Future<String> setPassword({
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    try {
+      // FIX: Changed to PATCH based on your Swagger screenshot
+      final response = await _dio.patch(
+        '/auth/set-password',
+        data: {
+          'newPassword': newPassword,
+          'confirmPassword': confirmPassword,
+        },
+      );
+      return response.data['message'] as String;
+    } on DioException catch (e) {
+      if (e.response != null && e.response!.data != null) {
+        final dynamic msg = e.response!.data['message'];
+        final String errorMessage = msg is List
+            ? msg.join('\n')
+            : msg?.toString() ?? 'An unknown server error occurred.';
+        throw SetPasswordException(errorMessage);
+      } else {
+        throw SetPasswordException(
+            'Failed to connect to the server. Please check your internet connection.');
+      }
+    } catch (e) {
+      throw SetPasswordException(
+          'An unexpected error occurred. Please try again.');
+    }
+  }
 
   // --- CHANGE PASSWORD METHOD ---
   Future<String> changePassword({
@@ -69,7 +134,6 @@ class AuthRepository {
       return response.data['message'] as String;
     } on DioException catch (e) {
       if (e.response != null && e.response!.data != null) {
-        // FIX: Handle List or String error message
         final dynamic msg = e.response!.data['message'];
         final String errorMessage = msg is List
             ? msg.join('\n')
@@ -105,7 +169,6 @@ class AuthRepository {
       return response.data['message'] as String;
     } on DioException catch (e) {
       if (e.response != null && e.response!.data != null) {
-        // FIX: Handle List or String error message
         final dynamic msg = e.response!.data['message'];
         final String errorMessage = msg is List
             ? msg.join('\n')
@@ -131,7 +194,6 @@ class AuthRepository {
       return response.data['message'] as String;
     } on DioException catch (e) {
       if (e.response != null && e.response!.data != null) {
-        // FIX: Handle List or String error message
         final dynamic msg = e.response!.data['message'];
         final String errorMessage = msg is List
             ? msg.join('\n')
@@ -144,28 +206,6 @@ class AuthRepository {
     } catch (e) {
       throw ForgotPasswordException(
           'An unexpected error occurred. Please try again.');
-    }
-  }
-
-  // --- GET PROFILE METHOD ---
-  Future<UserModel> getProfile() async {
-    try {
-      final response = await _dio.get('/auth/profile');
-      return UserModel.fromJson(response.data);
-    } on DioException catch (e) {
-      if (e.response != null && e.response!.data != null) {
-        // FIX: Handle List or String error message
-        final dynamic msg = e.response!.data['message'];
-        final String errorMessage = msg is List
-            ? msg.join('\n')
-            : msg?.toString() ?? 'Failed to load profile.';
-        throw ProfileException(errorMessage);
-      } else {
-        throw ProfileException('Network error. Please check your connection.');
-      }
-    } catch (e) {
-      throw ProfileException(
-          'An unexpected error occurred while fetching your profile.');
     }
   }
 
@@ -182,7 +222,6 @@ class AuthRepository {
       return LoginSuccessResponse.fromJson(response.data);
     } on DioException catch (e) {
       if (e.response != null && e.response!.data != null) {
-        // FIX: Handle List or String error message
         final dynamic msg = e.response!.data['message'];
         final String errorMessage = msg is List
             ? msg.join('\n')
@@ -221,7 +260,6 @@ class AuthRepository {
       );
     } on DioException catch (e) {
       if (e.response != null && e.response!.data != null) {
-        // FIX: Handle List or String error message
         final dynamic msg = e.response!.data['message'];
         final String errorMessage = msg is List
             ? msg.join('\n')
@@ -234,6 +272,29 @@ class AuthRepository {
     } catch (e) {
       throw RegistrationException(
           'An unexpected error occurred. Please try again.');
+    }
+  }
+
+  // --- GOOGLE LOGIN METHOD ---
+  Future<LoginSuccessResponse> loginWithGoogle(String idToken) async {
+    try {
+      final response = await _dio.post(
+        '/auth/google-mobile',
+        data: {'token': idToken},
+      );
+      return LoginSuccessResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.response != null && e.response!.data != null) {
+        final dynamic msg = e.response!.data['message'];
+        final String errorMessage = msg is List
+            ? msg.join('\n')
+            : msg?.toString() ?? 'Google login failed.';
+        throw LoginException(errorMessage);
+      } else {
+        throw LoginException('Connection error. Please check your internet.');
+      }
+    } catch (e) {
+      throw LoginException('An unexpected error occurred: $e');
     }
   }
 }

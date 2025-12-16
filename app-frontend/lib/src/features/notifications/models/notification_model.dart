@@ -1,8 +1,6 @@
-// lib/src/features/notifications/models/notification_model.dart
-
 import 'package:firebase_messaging/firebase_messaging.dart';
 
-enum NotificationType { general, video }
+enum NotificationType { general, video, prayer, newRelease }
 
 class AppNotification {
   final String id;
@@ -10,7 +8,7 @@ class AppNotification {
   final String body;
   final NotificationType type;
   final DateTime timestamp;
-  bool isRead;
+  final bool isRead;
 
   AppNotification({
     required this.id,
@@ -21,12 +19,30 @@ class AppNotification {
     this.isRead = false,
   });
 
-  // --- 1. From Firebase ---
+  // --- 1. CopyWith Method (Added this to fix your error) ---
+  AppNotification copyWith({
+    String? id,
+    String? title,
+    String? body,
+    NotificationType? type,
+    DateTime? timestamp,
+    bool? isRead,
+  }) {
+    return AppNotification(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      type: type ?? this.type,
+      timestamp: timestamp ?? this.timestamp,
+      isRead: isRead ?? this.isRead,
+    );
+  }
+
+  // --- 2. From Firebase ---
   factory AppNotification.fromRemoteMessage(RemoteMessage message) {
     final data = message.data;
-    final typeString = data['type'] ?? 'general';
+    final typeString = data['type']?.toString().toLowerCase() ?? 'general';
 
-    // FIX 1: Check if 'id' exists in data payload first, otherwise use messageId
     final String id = data['id']?.toString() ??
         message.messageId ??
         DateTime.now().millisecondsSinceEpoch.toString();
@@ -35,28 +51,39 @@ class AppNotification {
       id: id,
       title: message.notification?.title ?? 'New Notification',
       body: message.notification?.body ?? '',
-      type: typeString == 'video'
-          ? NotificationType.video
-          : NotificationType.general,
-      // FIX 2: Convert to Local Time
+      type: _parseType(typeString),
       timestamp: (message.sentTime ?? DateTime.now()).toLocal(),
       isRead: false,
     );
   }
 
-  // --- 2. From Backend API ---
+  // --- 3. From Backend API ---
   factory AppNotification.fromApiJson(Map<String, dynamic> json) {
     return AppNotification(
       id: json['id'].toString(),
       title: json['title'] ?? 'Notification',
-      body: json['message'] ?? '',
-      type: NotificationType.general,
-      // FIX 3: Parse and Convert to Local Time
+      body: json['message'] ?? json['body'] ?? '',
+      type: _parseType(json['type']?.toString() ?? ''),
+      // Parse sentAt or timestamp
       timestamp: json['sentAt'] != null
           ? DateTime.parse(json['sentAt']).toLocal()
-          : DateTime.now(),
-      isRead: false,
+          : (json['timestamp'] != null
+              ? DateTime.parse(json['timestamp']).toLocal()
+              : DateTime.now()),
+      isRead: json['isRead'] ?? false,
     );
+  }
+
+  // Helper to parse types based on keywords or exact matches
+  static NotificationType _parseType(String typeStr) {
+    final t = typeStr.toLowerCase();
+    if (t.contains('video') || t.contains('youtube'))
+      return NotificationType.video;
+    if (t.contains('prayer') || t.contains('azan'))
+      return NotificationType.prayer;
+    if (t.contains('release') || t.contains('movie'))
+      return NotificationType.newRelease;
+    return NotificationType.general;
   }
 
   Map<String, dynamic> toJson() => {
@@ -68,15 +95,23 @@ class AppNotification {
         'isRead': isRead,
       };
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) =>
-      AppNotification(
-        id: json['id'],
-        title: json['title'],
-        body: json['body'],
-        type: json['type'] == 'NotificationType.video'
-            ? NotificationType.video
-            : NotificationType.general,
-        timestamp: DateTime.parse(json['timestamp']),
-        isRead: json['isRead'],
-      );
+  factory AppNotification.fromJson(Map<String, dynamic> json) {
+    // Handle string enum storage
+    NotificationType storedType = NotificationType.general;
+    if (json['type'].toString().contains('video'))
+      storedType = NotificationType.video;
+    else if (json['type'].toString().contains('prayer'))
+      storedType = NotificationType.prayer;
+    else if (json['type'].toString().contains('Release'))
+      storedType = NotificationType.newRelease;
+
+    return AppNotification(
+      id: json['id'],
+      title: json['title'],
+      body: json['body'],
+      type: storedType,
+      timestamp: DateTime.parse(json['timestamp']),
+      isRead: json['isRead'],
+    );
+  }
 }

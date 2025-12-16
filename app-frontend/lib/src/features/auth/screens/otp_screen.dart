@@ -119,7 +119,7 @@ class _OTPScreenState extends ConsumerState<OTPScreen> {
           color: AppTheme.primaryColor,
           fontWeight: FontWeight.w600),
       decoration: BoxDecoration(
-          border: Border.all(color: AppTheme.hintColor.withOpacity(0.5)),
+          // border: Border.all(color: AppTheme.hintColor.withOpacity(0.5)),
           borderRadius: BorderRadius.circular(8)),
     );
 

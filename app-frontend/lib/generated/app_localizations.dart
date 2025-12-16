@@ -465,6 +465,726 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No data'**
   String get noData;
+
+  /// No description provided for @generalSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'General Settings'**
+  String get generalSettings;
+
+  /// No description provided for @managePreferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage your account and app preferences'**
+  String get managePreferences;
+
+  /// No description provided for @sectionAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'ACCOUNT'**
+  String get sectionAccount;
+
+  /// No description provided for @generalSettingsTile.
+  ///
+  /// In en, this message translates to:
+  /// **'General Settings'**
+  String get generalSettingsTile;
+
+  /// No description provided for @profilePasswordMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile, password & more'**
+  String get profilePasswordMore;
+
+  /// No description provided for @notificationSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification Settings'**
+  String get notificationSettings;
+
+  /// No description provided for @manageNotificationPreferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage notification preferences'**
+  String get manageNotificationPreferences;
+
+  /// No description provided for @sectionApp.
+  ///
+  /// In en, this message translates to:
+  /// **'APP'**
+  String get sectionApp;
+
+  /// No description provided for @appLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'App Language'**
+  String get appLanguage;
+
+  /// No description provided for @privacySecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy & Security'**
+  String get privacySecurity;
+
+  /// No description provided for @managePrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage your privacy'**
+  String get managePrivacy;
+
+  /// No description provided for @sectionOther.
+  ///
+  /// In en, this message translates to:
+  /// **'OTHER'**
+  String get sectionOther;
+
+  /// No description provided for @about.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get about;
+
+  /// No description provided for @signOutSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of your account'**
+  String get signOutSubtitle;
+
+  /// No description provided for @selectLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Language'**
+  String get selectLanguage;
+
+  /// No description provided for @menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Menu'**
+  String get menu;
+
+  /// No description provided for @categories.
+  ///
+  /// In en, this message translates to:
+  /// **'Categories'**
+  String get categories;
+
+  /// No description provided for @translatedMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Translated Movies'**
+  String get translatedMovies;
+
+  /// No description provided for @seriesMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Series Movies'**
+  String get seriesMovies;
+
+  /// No description provided for @premiumNesheed.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium Nesheed'**
+  String get premiumNesheed;
+
+  /// No description provided for @quranTafseer.
+  ///
+  /// In en, this message translates to:
+  /// **'Quran Tafseer'**
+  String get quranTafseer;
+
+  /// No description provided for @prophetHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Prophet History'**
+  String get prophetHistory;
+
+  /// No description provided for @documentaries.
+  ///
+  /// In en, this message translates to:
+  /// **'Documentaries'**
+  String get documentaries;
+
+  /// No description provided for @alfarukKheber.
+  ///
+  /// In en, this message translates to:
+  /// **'Alfaruk Kheber'**
+  String get alfarukKheber;
+
+  /// No description provided for @yeneMovie.
+  ///
+  /// In en, this message translates to:
+  /// **'Yene Movie'**
+  String get yeneMovie;
+
+  /// No description provided for @khadim.
+  ///
+  /// In en, this message translates to:
+  /// **'Khadim'**
+  String get khadim;
+
+  /// No description provided for @iqraReadListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Iqra - Read & Listen'**
+  String get iqraReadListen;
+
+  /// No description provided for @youtubeContent.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube Content'**
+  String get youtubeContent;
+
+  /// No description provided for @dawahFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Dawah (Free)'**
+  String get dawahFree;
+
+  /// No description provided for @settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settings;
+
+  /// No description provided for @service.
+  ///
+  /// In en, this message translates to:
+  /// **'Service'**
+  String get service;
+
+  /// No description provided for @donation.
+  ///
+  /// In en, this message translates to:
+  /// **'Donation'**
+  String get donation;
+
+  /// No description provided for @supportCauses.
+  ///
+  /// In en, this message translates to:
+  /// **'Support our causes'**
+  String get supportCauses;
+
+  /// No description provided for @halalGebeya.
+  ///
+  /// In en, this message translates to:
+  /// **'Halal Gebeya'**
+  String get halalGebeya;
+
+  /// No description provided for @islamicMarketplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Islamic marketplace'**
+  String get islamicMarketplace;
+
+  /// No description provided for @eventTickets.
+  ///
+  /// In en, this message translates to:
+  /// **'Event Tickets'**
+  String get eventTickets;
+
+  /// No description provided for @bookEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Book your events'**
+  String get bookEvents;
+
+  /// No description provided for @ourYoutubePartners.
+  ///
+  /// In en, this message translates to:
+  /// **'Our YouTube Partners'**
+  String get ourYoutubePartners;
+
+  /// No description provided for @connectCreators.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect with creators'**
+  String get connectCreators;
+
+  /// No description provided for @comingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming Soon'**
+  String get comingSoon;
+
+  /// No description provided for @mosqueLocator.
+  ///
+  /// In en, this message translates to:
+  /// **'Mosque Locator'**
+  String get mosqueLocator;
+
+  /// No description provided for @qiblaFinder.
+  ///
+  /// In en, this message translates to:
+  /// **'Qibla Finder'**
+  String get qiblaFinder;
+
+  /// No description provided for @todaysPrayerTimes.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s Prayer Times'**
+  String get todaysPrayerTimes;
+
+  /// No description provided for @pdfBooks.
+  ///
+  /// In en, this message translates to:
+  /// **'PDF Books'**
+  String get pdfBooks;
+
+  /// No description provided for @audioBooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio Books'**
+  String get audioBooks;
+
+  /// No description provided for @watchTrailer.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch Trailer'**
+  String get watchTrailer;
+
+  /// No description provided for @trailerNotAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailer not available'**
+  String get trailerNotAvailable;
+
+  /// No description provided for @readMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Read More'**
+  String get readMore;
+
+  /// No description provided for @readLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Read Less'**
+  String get readLess;
+
+  /// No description provided for @surah.
+  ///
+  /// In en, this message translates to:
+  /// **'Surah'**
+  String get surah;
+
+  /// No description provided for @tapToPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to play'**
+  String get tapToPlay;
+
+  /// No description provided for @all.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get all;
+
+  /// No description provided for @noSheikhsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No Sheikhs found'**
+  String get noSheikhsFound;
+
+  /// No description provided for @surahsAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Surahs Available'**
+  String get surahsAvailable;
+
+  /// No description provided for @yourSavedMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Your saved movies'**
+  String get yourSavedMovies;
+
+  /// No description provided for @swipeToSwitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe left/right to switch tabs'**
+  String get swipeToSwitch;
+
+  /// No description provided for @favorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get favorites;
+
+  /// No description provided for @nasheeds.
+  ///
+  /// In en, this message translates to:
+  /// **'Nasheeds'**
+  String get nasheeds;
+
+  /// No description provided for @noSavedMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved movies'**
+  String get noSavedMovies;
+
+  /// No description provided for @addMoviesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add movies using the Add List button'**
+  String get addMoviesHint;
+
+  /// No description provided for @noSavedNasheeds.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved nasheeds'**
+  String get noSavedNasheeds;
+
+  /// No description provided for @addNasheedsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add nasheeds using the Add List button'**
+  String get addNasheedsHint;
+
+  /// No description provided for @noFavoritesYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No favorites yet'**
+  String get noFavoritesYet;
+
+  /// No description provided for @markFavoritesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark items as favorite to see them here'**
+  String get markFavoritesHint;
+
+  /// No description provided for @browseContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse Content'**
+  String get browseContent;
+
+  /// No description provided for @subscribe.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe'**
+  String get subscribe;
+
+  /// No description provided for @ourChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Our Channels'**
+  String get ourChannels;
+
+  /// No description provided for @popularVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular Videos'**
+  String get popularVideos;
+
+  /// No description provided for @subscribeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe to our YouTube channels for more Islamic content'**
+  String get subscribeSubtitle;
+
+  /// No description provided for @descQuran.
+  ///
+  /// In en, this message translates to:
+  /// **'Quran recitation and tafsir'**
+  String get descQuran;
+
+  /// No description provided for @descKnowledge.
+  ///
+  /// In en, this message translates to:
+  /// **'Islamic knowledge and education'**
+  String get descKnowledge;
+
+  /// No description provided for @descMovies.
+  ///
+  /// In en, this message translates to:
+  /// **'Islamic movies and series'**
+  String get descMovies;
+
+  /// No description provided for @descTalkShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Islamic talk shows and discussions'**
+  String get descTalkShow;
+
+  /// No description provided for @bookDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Book Details'**
+  String get bookDetails;
+
+  /// No description provided for @unknownAuthor.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown Author'**
+  String get unknownAuthor;
+
+  /// No description provided for @readBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Read Book'**
+  String get readBook;
+
+  /// No description provided for @listenBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen Book'**
+  String get listenBook;
+
+  /// No description provided for @genre.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre'**
+  String get genre;
+
+  /// No description provided for @pages.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages'**
+  String get pages;
+
+  /// No description provided for @year.
+  ///
+  /// In en, this message translates to:
+  /// **'Year'**
+  String get year;
+
+  /// No description provided for @bookSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Book Summary'**
+  String get bookSummary;
+
+  /// No description provided for @aboutThisBook.
+  ///
+  /// In en, this message translates to:
+  /// **'About This Book'**
+  String get aboutThisBook;
+
+  /// No description provided for @iqra.
+  ///
+  /// In en, this message translates to:
+  /// **'Iqra'**
+  String get iqra;
+
+  /// No description provided for @profileInformation.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile Information'**
+  String get profileInformation;
+
+  /// No description provided for @fullName.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Name'**
+  String get fullName;
+
+  /// No description provided for @emailAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Email Address'**
+  String get emailAddress;
+
+  /// No description provided for @currentPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Password'**
+  String get currentPassword;
+
+  /// No description provided for @newPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'New Password'**
+  String get newPassword;
+
+  /// No description provided for @confirmNewPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm New Password'**
+  String get confirmNewPassword;
+
+  /// No description provided for @enterCurrentPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter current password'**
+  String get enterCurrentPassword;
+
+  /// No description provided for @enterNewPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter new password'**
+  String get enterNewPassword;
+
+  /// No description provided for @confirmNewPasswordHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm new password'**
+  String get confirmNewPasswordHint;
+
+  /// No description provided for @minSixChars.
+  ///
+  /// In en, this message translates to:
+  /// **'Min 6 chars'**
+  String get minSixChars;
+
+  /// No description provided for @passwordsDoNotMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Passwords do not match'**
+  String get passwordsDoNotMatch;
+
+  /// No description provided for @updatePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Password'**
+  String get updatePassword;
+
+  /// No description provided for @required.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get required;
+
+  /// No description provided for @failedToLoadProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load profile'**
+  String get failedToLoadProfile;
+
+  /// No description provided for @privacyPolicyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy for AL FARUK App'**
+  String get privacyPolicyTitle;
+
+  /// No description provided for @lastUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last updated: February, 2025'**
+  String get lastUpdated;
+
+  /// No description provided for @privacyIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Your privacy is important to us. This privacy policy explains how we collect, use, and protect your information when you use the AL FARUK mobile application (the \"App\"). By using the App, you agree to the collection and use of information in accordance with this policy.'**
+  String get privacyIntro;
+
+  /// No description provided for @companies.
+  ///
+  /// In en, this message translates to:
+  /// **'Companies'**
+  String get companies;
+
+  /// No description provided for @trustedOrgs.
+  ///
+  /// In en, this message translates to:
+  /// **'Trusted organizations you can support'**
+  String get trustedOrgs;
+
+  /// No description provided for @urgentCases.
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent Cases'**
+  String get urgentCases;
+
+  /// No description provided for @urgentCasesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent cases needing immediate support'**
+  String get urgentCasesDesc;
+
+  /// No description provided for @viewUrgentCases.
+  ///
+  /// In en, this message translates to:
+  /// **'View Urgent Cases'**
+  String get viewUrgentCases;
+
+  /// No description provided for @supportCommunity.
+  ///
+  /// In en, this message translates to:
+  /// **'Support our community'**
+  String get supportCommunity;
+
+  /// No description provided for @eduPrograms.
+  ///
+  /// In en, this message translates to:
+  /// **'Educational programs'**
+  String get eduPrograms;
+
+  /// No description provided for @healthInitiatives.
+  ///
+  /// In en, this message translates to:
+  /// **'Healthcare initiatives'**
+  String get healthInitiatives;
+
+  /// No description provided for @communitySupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Community support initiatives'**
+  String get communitySupport;
+
+  /// No description provided for @youthPrograms.
+  ///
+  /// In en, this message translates to:
+  /// **'Youth programs'**
+  String get youthPrograms;
+
+  /// No description provided for @islamicConference.
+  ///
+  /// In en, this message translates to:
+  /// **'Islamic conference'**
+  String get islamicConference;
+
+  /// No description provided for @communityGathering.
+  ///
+  /// In en, this message translates to:
+  /// **'Community gathering'**
+  String get communityGathering;
+
+  /// No description provided for @culturalEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Cultural event'**
+  String get culturalEvent;
+
+  /// No description provided for @youthFestival.
+  ///
+  /// In en, this message translates to:
+  /// **'Youth festival'**
+  String get youthFestival;
+
+  /// No description provided for @couldNotLaunch.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open link'**
+  String get couldNotLaunch;
+
+  /// No description provided for @detail.
+  ///
+  /// In en, this message translates to:
+  /// **'Detail'**
+  String get detail;
+
+  /// No description provided for @watchNow.
+  ///
+  /// In en, this message translates to:
+  /// **'WATCH NOW'**
+  String get watchNow;
+
+  /// No description provided for @addList.
+  ///
+  /// In en, this message translates to:
+  /// **'Add List'**
+  String get addList;
+
+  /// No description provided for @movieDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Movie Details'**
+  String get movieDetails;
+
+  /// No description provided for @watchFree.
+  ///
+  /// In en, this message translates to:
+  /// **'WATCH FREE'**
+  String get watchFree;
 }
 
 class _AppLocalizationsDelegate

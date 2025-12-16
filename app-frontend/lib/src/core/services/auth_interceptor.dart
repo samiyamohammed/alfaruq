@@ -12,29 +12,33 @@ class AuthInterceptor extends Interceptor {
   @override
   void onRequest(
       RequestOptions options, RequestInterceptorHandler handler) async {
-    // --- DIAGNOSTIC STEP ---
-    // This print statement will tell us the exact path of the outgoing request.
-    // This is the most important line of code right now.
-    print('Intercepting request path: "${options.path}"');
+    // print('Intercepting request path: "${options.path}"'); // Optional: Comment out to clean up logs
 
+    // --- FIX: ADD GOOGLE ROUTE HERE ---
+    // Adding '/auth/google-mobile' tells the interceptor:
+    // "Don't look for a token for this request, it's a login attempt."
     final noAuthRoutes = [
       '/auth/login',
       '/auth/register',
+      '/auth/google-mobile',
+      '/auth/forgot-password',
     ];
 
-    if (noAuthRoutes.any((route) => options.path == route)) {
-      print('Path is a public route. Passing without token.');
+    // Check if the current path matches any of the noAuthRoutes
+    // We use .contains or .endsWith to be safe depending on your exact API structure
+    if (noAuthRoutes.any((route) => options.path.contains(route))) {
+      // print('Path is a public route. Passing without token.');
       return handler.next(options);
     }
 
-    print('Path is a protected route. Attempting to add token.');
+    // print('Path is a protected route. Attempting to add token.');
     final token = await _storageService.getToken();
 
     if (token != null) {
-      print('Token found. Adding to headers.');
+      // print('Token found. Adding to headers.');
       options.headers['Authorization'] = 'Bearer $token';
     } else {
-      print('No token found.');
+      // print('No token found.');
     }
 
     return handler.next(options);
@@ -42,18 +46,19 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    print(
-        'Interceptor caught an error: ${err.response?.statusCode} on path "${err.requestOptions.path}"');
+    // print('Interceptor caught an error: ${err.response?.statusCode} on path "${err.requestOptions.path}"');
+
     final noAuthRoutes = [
       '/auth/login',
       '/auth/register',
+      '/auth/google-mobile',
     ];
 
     if (err.response?.statusCode == 401) {
-      if (!noAuthRoutes.any((route) => err.requestOptions.path == route)) {
+      if (!noAuthRoutes
+          .any((route) => err.requestOptions.path.contains(route))) {
         await _storageService.deleteToken();
-        print(
-            'Auth Error: Token is invalid on a protected route. User needs to log in again.');
+        print('Auth Error: Token is invalid. User needs to log in again.');
       }
     }
 

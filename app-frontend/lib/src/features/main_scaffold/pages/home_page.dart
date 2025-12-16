@@ -1,242 +1,202 @@
-import 'package:al_faruk_app/src/core/models/content_item_model.dart';
-import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:al_faruk_app/generated/app_localizations.dart'; // 1. Import Localization
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart'; // Import Provider
-import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/content_carousel.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/hero_banner.dart';
-import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/generic_grid_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/channels_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/dawah_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/featured_carousel.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/horizontal_content_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/iqra_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/news_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/tafsir_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/youtube_section.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/tafsir_sheikhs_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:al_faruk_app/generated/app_localizations.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final feedAsyncValue = ref.watch(feedContentProvider);
+    // 2. Initialize Localization
     final l10n = AppLocalizations.of(context)!;
+
+    final feedAsync = ref.watch(feedContentProvider);
+    final newsAsync = ref.watch(newsProvider);
 
     return Scaffold(
-      body: feedAsyncValue.when(
+      body: feedAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('${l10n.error}: $err')),
-        data: (feedItems) {
-          if (feedItems.isEmpty) {
-            return Center(child: Text(l10n.noContent));
-          }
+        error: (err, stack) => Center(child: Text('Error: $err')),
+        data: (allFeedItems) {
+          // --- FILTERING DATA ---
+          final movies = allFeedItems.where((i) => i.type == 'MOVIE').toList();
+          final series = allFeedItems.where((i) => i.type == 'SERIES').toList();
+          final prophets =
+              allFeedItems.where((i) => i.type == 'PROPHET_HISTORY').toList();
+          final dawah = allFeedItems.where((i) => i.type == 'DAWAH').toList();
+          final docs =
+              allFeedItems.where((i) => i.type == 'DOCUMENTARY').toList();
+          final menzumas =
+              allFeedItems.where((i) => i.type == 'MUSIC_VIDEO').toList();
+          final books = allFeedItems.where((i) => i.type == 'BOOK').toList();
 
-          final movies =
-              feedItems.where((item) => item.type == 'MOVIE').toList();
-          final series =
-              feedItems.where((item) => item.type == 'SERIES').toList();
-          final musicVideos =
-              feedItems.where((item) => item.type == 'MUSIC_VIDEO').toList();
+          final featuredItems = movies.take(5).toList();
 
-          void sortItems(List<FeedItem> items) {
-            if (items.isNotEmpty) {
-              items.sort((a, b) {
-                final dateA = a.createdAt ?? DateTime(0);
-                final dateB = b.createdAt ?? DateTime(0);
-                return dateB.compareTo(dateA);
-              });
-            }
-          }
+          return RefreshIndicator(
+            onRefresh: () async => ref.refresh(feedContentProvider),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                const SizedBox(height: 100),
 
-          sortItems(movies);
-          sortItems(series);
-          sortItems(musicVideos);
-
-          final featuredMovie = movies.isNotEmpty ? movies.first : null;
-
-          List<ContentItem> mapToContentItems(List<FeedItem> items) {
-            return items.map((item) {
-              return ContentItem(
-                id: item.id,
-                title: item.title,
-                thumbnailUrl: item.thumbnailUrl ?? '',
-                isLocked: item.isLocked,
-              );
-            }).toList();
-          }
-
-          final trailerItems = mapToContentItems(
-              feedItems.where((item) => item.trailerUrl != null).toList());
-          final movieItems = mapToContentItems(movies);
-          final seriesItems = mapToContentItems(series);
-          final musicVideoItems = mapToContentItems(musicVideos);
-
-          return ListView(
-            children: [
-              // 1. HERO BANNER
-              if (featuredMovie != null)
-                InkWell(
-                  onTap: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => ContentPlayerScreen(
-                        contentId: featuredMovie.id,
-                        relatedContent: movies,
-                      ),
-                    ));
-                  },
-                  child: HeroBanner(
-                    content: ContentItem(
-                      id: featuredMovie.id,
-                      title: featuredMovie.title,
-                      thumbnailUrl: featuredMovie.thumbnailUrl ?? '',
-                      isLocked: featuredMovie.isLocked,
+                // 1. Featured Movies
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    l10n.sectionPopularMovies, // Localized
+                    style: const TextStyle(
+                      color: Color(0xFFCFB56C),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                )
-              else
+                ),
+                const SizedBox(height: 16),
+                if (featuredItems.isNotEmpty)
+                  FeaturedCarousel(items: featuredItems),
+
                 const SizedBox(height: 24),
 
-              // 2. TRAILERS SECTION
-              if (trailerItems.isNotEmpty) ...[
-                _buildSectionHeader(
-                  context,
-                  title: l10n.sectionTrailers,
-                  onSeeAll: () {
-                    // Switch to Library Page (Index 2) -> Trailers Tab (Index 2)
-                    ref.read(libraryTabIndexProvider.notifier).state = 2;
-                    ref.read(bottomNavIndexProvider.notifier).state = 2;
-                  },
-                ),
-                ContentCarousel(
-                  items: trailerItems,
-                  title: '',
-                  onItemTap: (contentItem) {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => ContentPlayerScreen(
-                        contentId: contentItem.id,
-                        relatedContent: movies,
+                // 2. Translated Films
+                if (movies.isNotEmpty)
+                  HorizontalContentSection(
+                    title: l10n.translatedMovies, // Localized
+                    items: movies.take(10).toList(),
+                    isPortrait: true,
+                    onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => GenericGridScreen(
+                                title: l10n.translatedMovies, // Localized
+                                items: movies))),
+                  ),
+
+                const SizedBox(height: 12),
+
+                // 3. Series Films
+                if (series.isNotEmpty)
+                  HorizontalContentSection(
+                    title: l10n.seriesMovies, // Localized
+                    items: series.take(10).toList(),
+                    isPortrait: true,
+                    onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => GenericGridScreen(
+                                title: l10n.seriesMovies, // Localized
+                                items: series))),
+                  ),
+
+                const SizedBox(height: 12),
+
+                // 4. Premium Menzumas
+                if (menzumas.isNotEmpty)
+                  HorizontalContentSection(
+                    title: l10n.premiumNesheed, // Localized
+                    items: menzumas.take(10).toList(),
+                    isPortrait: true,
+                    onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => GenericGridScreen(
+                                title: l10n.premiumNesheed, // Localized
+                                items: menzumas))),
+                  ),
+
+                const SizedBox(height: 12),
+
+                // 5. Quran Tafsir
+                TafsirSection(
+                  items: const [],
+                  // UPDATED CALLBACK: Accepts the ID
+                  onSeeAll: (selectedLanguageId) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TafsirSheikhsScreen(
+                          // This requires the TafsirSheikhsScreen file to be updated first
+                          initialLanguageId: selectedLanguageId,
+                        ),
                       ),
-                    ));
+                    );
                   },
                 ),
+
+                // 6. Prophets History
+                if (prophets.isNotEmpty)
+                  HorizontalContentSection(
+                    title: l10n.prophetHistory, // Localized
+                    items: prophets.take(10).toList(),
+                    isLandscape: true,
+                    onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => GenericGridScreen(
+                                title: l10n.prophetHistory, // Localized
+                                items: prophets))),
+                  ),
+
+                // 7. Iqra Section
+                IqraSection(books: books.take(10).toList()),
+
+                // 8. Da'wah
+                if (dawah.isNotEmpty)
+                  DawahSection(
+                    items: dawah.take(10).toList(),
+                    onSeeAll: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => GenericGridScreen(
+                                  title: l10n.dawahFree, // Localized
+                                  items: dawah)));
+                    },
+                  ),
+
+                // 9. Our Channels
+                const ChannelsSection(),
+
+                // 10. Popular on YouTube
+                const YoutubeSection(),
+
+                // 11. Documentaries
+                if (docs.isNotEmpty)
+                  HorizontalContentSection(
+                    title: l10n.documentaries, // Localized
+                    items: docs.take(10).toList(),
+                    isLandscape: true,
+                    onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => GenericGridScreen(
+                                title: l10n.documentaries, // Localized
+                                items: docs))),
+                  ),
+
+                // 12. Alfaruk Kheber
+                newsAsync.when(
+                  data: (newsList) =>
+                      NewsSection(newsList: newsList.take(10).toList()),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                ),
+
+                const SizedBox(height: 100),
               ],
-
-              const SizedBox(height: 8),
-
-              // 3. POPULAR MOVIES SECTION
-              if (movieItems.isNotEmpty) ...[
-                _buildSectionHeader(
-                  context,
-                  title: l10n.sectionPopularMovies,
-                  onSeeAll: () {
-                    // Switch to Library Page (Index 2) -> Movies Tab (Index 0)
-                    ref.read(libraryTabIndexProvider.notifier).state = 0;
-                    ref.read(bottomNavIndexProvider.notifier).state = 2;
-                  },
-                ),
-                ContentCarousel(
-                  items: movieItems,
-                  title: '',
-                  onItemTap: (contentItem) {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => ContentPlayerScreen(
-                        contentId: contentItem.id,
-                        relatedContent: movies,
-                      ),
-                    ));
-                  },
-                ),
-              ],
-
-              const SizedBox(height: 8),
-
-              // 4. MUSIC VIDEOS SECTION
-              if (musicVideoItems.isNotEmpty) ...[
-                _buildSectionHeader(
-                  context,
-                  title: l10n.sectionMusicVideos,
-                  onSeeAll: () {
-                    // Switch to Videos Page (Index 1) -> Music Tab (Index 1)
-                    ref.read(videosTabIndexProvider.notifier).state = 1;
-                    ref.read(bottomNavIndexProvider.notifier).state = 1;
-                  },
-                ),
-                ContentCarousel(
-                  items: musicVideoItems,
-                  title: '',
-                  onItemTap: (contentItem) {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => ContentPlayerScreen(
-                        contentId: contentItem.id,
-                        relatedContent: musicVideos,
-                      ),
-                    ));
-                  },
-                ),
-              ],
-
-              const SizedBox(height: 8),
-
-              // 5. SERIES SECTION
-              if (seriesItems.isNotEmpty) ...[
-                _buildSectionHeader(
-                  context,
-                  title: l10n.sectionSeries,
-                  onSeeAll: () {
-                    // Switch to Library Page (Index 2) -> Series Tab (Index 1)
-                    ref.read(libraryTabIndexProvider.notifier).state = 1;
-                    ref.read(bottomNavIndexProvider.notifier).state = 2;
-                  },
-                ),
-                ContentCarousel(
-                  items: seriesItems,
-                  title: '',
-                  onItemTap: (contentItem) {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => ContentPlayerScreen(
-                        contentId: contentItem.id,
-                        relatedContent: series,
-                      ),
-                    ));
-                  },
-                ),
-              ],
-
-              const SizedBox(height: 24),
-            ],
+            ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(
-    BuildContext context, {
-    required String title,
-    required VoidCallback onSeeAll,
-  }) {
-    final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          InkWell(
-            onTap: onSeeAll,
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.all(4.0),
-              child: Text(
-                l10n.seeAll,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -50,6 +50,9 @@ dependencies:
   firebase_core: ^4.2.1
   firebase_messaging: ^16.0.4
   youtube_explode_dart: ^3.0.5
+  timeago: ^3.7.1
+  syncfusion_flutter_pdfviewer: ^31.2.16
+  google_sign_in: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -65,14 +68,11 @@ flutter:
   assets:
     - assets/.env
     - assets/
+    - assets/images/
     - assets/images/logo.png
     - assets/images/logo_symbol.png
-    - assets/images/thumb_islamic_art.png
-    - assets/images/thumb_baghdad.png
-    - assets/images/thumb_calligraphy.png
     - assets/audio/adhan.mp3
     - assets/audio/takbir.mp3
-    - assets/audio/tone.mp3
     - assets/icons/google.png
     - assets/icons/facebook.png
 flutter_launcher_icons:

@@ -1,11 +1,14 @@
 import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/content_library_page.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/content_library_page.dart'; // Ensure this matches your project structure
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home_page.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/qiblah_page.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/videos_page.dart';
-import 'package:al_faruk_app/src/features/profile/screens/profile_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/iqra_library_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/khadim_page.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/service_page.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/yene_movies_page.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_bottom_nav_bar.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart';
+import 'package:al_faruk_app/src/features/profile/screens/app_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,27 +20,38 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
+  // 1. Create the Key
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   static final List<Widget> _pages = <Widget>[
     const HomePage(), // Index 0
-    const VideosPage(), // Index 1
-    const ContentLibraryPage(), // Index 2
-    const QiblahPage(), // Index 3
-    const ProfileScreen(), // Index 4
+    const YeneMoviesPage(), // Index 1
+    const ServicePage(), // Index 2
+    const KhadimPage(), // Index 3
+    const IqraLibraryScreen(), // Index 4
+    const AppSettingsScreen(), // Index 5
   ];
 
   void _onItemTapped(int index) {
-    // Update the provider state
     ref.read(bottomNavIndexProvider.notifier).state = index;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Watch the provider state to update UI
     final selectedIndex = ref.watch(bottomNavIndexProvider);
 
     return Scaffold(
-      // Hide CustomAppBar on Profile screen (Index 4)
-      appBar: selectedIndex == 4 ? null : const CustomAppBar(),
+      // 2. Assign the Key here
+      key: _scaffoldKey,
+
+      extendBodyBehindAppBar: true,
+
+      // 3. Pass the Key to the AppBar
+      appBar:
+          selectedIndex == 0 ? CustomAppBar(scaffoldKey: _scaffoldKey) : null,
+
+      endDrawer: const CustomDrawer(),
+
       body: IndexedStack(
         index: selectedIndex,
         children: _pages,

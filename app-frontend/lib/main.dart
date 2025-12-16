@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:al_faruk_app/src/core/services/notification_service.dart';
 import 'package:al_faruk_app/src/core/services/service_providers.dart';
 import 'package:al_faruk_app/src/core/theme/app_theme.dart';
-import 'package:al_faruk_app/src/core/theme/theme_provider.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/auth/screens/auth_gate.dart';
 import 'package:flutter/foundation.dart';
@@ -82,14 +81,14 @@ Future<void> main() async {
   // 1. Load General Settings
   await settingsService.loadSettings();
 
-  // 2. Load Theme Settings (Fix for Reset Issue)
-  await themeManager.loadSettings();
-
+  // 2. Request Permissions
   await _requestAllPermissions();
 
+  // 3. Init Services
   await NotificationService.init(isBackground: false);
   await _updateAndCacheLocation();
 
+  // 4. Background Tasks (Mobile Only)
   if (!kIsWeb) {
     try {
       await Workmanager().initialize(
@@ -148,16 +147,17 @@ class _MyAppState extends ConsumerState<MyApp> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsServiceProvider);
 
-    // Watch the theme manager to rebuild when theme changes
-    final theme = ref.watch(themeManagerProvider);
-
     return MaterialApp(
       navigatorKey: NotificationService.navigatorKey,
       title: 'AL FARUK',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      // Use the theme from the manager
-      themeMode: theme.themeMode,
+
+      // --- THEME CONFIGURATION ---
+      // Strictly use the custom AppTheme we defined (Deep Blue & Gold)
+      theme: AppTheme.theme,
+      darkTheme: AppTheme.theme, // Force dark theme even if system is light
+      themeMode: ThemeMode.dark, // Always dark
+
+      // --- LOCALIZATION ---
       locale: settings.currentLocale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
