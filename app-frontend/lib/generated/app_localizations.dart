@@ -1185,6 +1185,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'WATCH FREE'**
   String get watchFree;
+
+  /// No description provided for @comingSoonDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'We are working hard to bring this feature to you. We will notify you once it\'s live!'**
+  String get comingSoonDesc;
+
+  /// No description provided for @notifyMe.
+  ///
+  /// In en, this message translates to:
+  /// **'NOTIFY ME'**
+  String get notifyMe;
+
+  /// No description provided for @ok.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get ok;
 }
 
 class _AppLocalizationsDelegate

@@ -1,14 +1,15 @@
-import 'package:al_faruk_app/generated/app_localizations.dart'; // 1. Import Localization
+import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart'; // 2. Import CustomAppBar
-import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart'; // 3. Import CustomDrawer
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/trailer_player_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/prophet_history_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Needed if using Drawer logic indirectly or future state
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class GenericGridScreen extends StatefulWidget {
+class GenericGridScreen extends ConsumerStatefulWidget {
   final String title;
   final List<FeedItem> items;
 
@@ -19,38 +20,31 @@ class GenericGridScreen extends StatefulWidget {
   });
 
   @override
-  State<GenericGridScreen> createState() => _GenericGridScreenState();
+  ConsumerState<GenericGridScreen> createState() => _GenericGridScreenState();
 }
 
-class _GenericGridScreenState extends State<GenericGridScreen> {
-  // 4. Create Key for Drawer
+class _GenericGridScreenState extends ConsumerState<GenericGridScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
-    // 5. Initialize Localization
     final l10n = AppLocalizations.of(context)!;
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
 
     return Scaffold(
-      key: _scaffoldKey, // Assign Key
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFF0B101D),
-
-      // 6. Add Drawer
       endDrawer: const CustomDrawer(),
-
-      // 7. Use CustomAppBar
       appBar: CustomAppBar(
-        isSubPage: true, // Show Back Arrow
-        title:
-            widget.title, // Use the localized title passed from previous screen
-        scaffoldKey: _scaffoldKey, // Enable Menu Button
+        isSubPage: true,
+        title: widget.title,
+        scaffoldKey: _scaffoldKey,
         onLeadingPressed: () => Navigator.pop(context),
       ),
-
       body: widget.items.isEmpty
           ? Center(
               child: Text(
-                l10n.noContent, // Localized "No content available"
+                l10n.noContent,
                 style: const TextStyle(color: Colors.white54),
               ),
             )
@@ -65,14 +59,16 @@ class _GenericGridScreenState extends State<GenericGridScreen> {
               itemCount: widget.items.length,
               itemBuilder: (context, index) {
                 final item = widget.items[index];
-                return _buildGridCard(context, item, l10n);
+                final isFav = bookmarkedIds.contains(item.id);
+
+                return _buildGridCard(context, item, l10n, isFav);
               },
             ),
     );
   }
 
   Widget _buildGridCard(
-      BuildContext context, FeedItem item, AppLocalizations l10n) {
+      BuildContext context, FeedItem item, AppLocalizations l10n, bool isFav) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF151E32),
@@ -82,7 +78,6 @@ class _GenericGridScreenState extends State<GenericGridScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Image + Lock/Price Tag
           Expanded(
             child: GestureDetector(
               onTap: () => _navigateToContent(context, item),
@@ -95,6 +90,28 @@ class _GenericGridScreenState extends State<GenericGridScreen> {
                       image: DecorationImage(
                         image: NetworkImage(item.thumbnailUrl ?? ''),
                         fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  // Fav Icon Overlay
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: GestureDetector(
+                      onTap: () => ref
+                          .read(bookmarksProvider.notifier)
+                          .toggleBookmark(item),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Colors.black45,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isFav ? Icons.favorite : Icons.favorite_border,
+                          color: isFav ? Colors.red : Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),
@@ -134,8 +151,6 @@ class _GenericGridScreenState extends State<GenericGridScreen> {
               ),
             ),
           ),
-
-          // 2. Title
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
             child: Text(
@@ -149,8 +164,6 @@ class _GenericGridScreenState extends State<GenericGridScreen> {
               ),
             ),
           ),
-
-          // 3. Watch Trailer Button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
             child: TextButton.icon(
@@ -165,15 +178,14 @@ class _GenericGridScreenState extends State<GenericGridScreen> {
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(l10n.trailerNotAvailable)), // Localized
+                    SnackBar(content: Text(l10n.trailerNotAvailable)),
                   );
                 }
               },
               icon: const Icon(Icons.play_arrow_outlined,
                   color: Color(0xFFCFB56C), size: 18),
               label: Text(
-                l10n.watchTrailer, // Localized "Watch Trailer"
+                l10n.watchTrailer,
                 style: const TextStyle(
                   color: Color(0xFFCFB56C),
                   fontSize: 12,

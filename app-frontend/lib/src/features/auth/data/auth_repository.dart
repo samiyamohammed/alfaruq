@@ -75,7 +75,6 @@ class AuthRepository {
       print("🚨 PROFILE ERROR CODE: ${e.response?.statusCode}");
       print("🚨 PROFILE ERROR DATA: ${e.response?.data}");
 
-      // *** FIX: Allow 403 errors to bubble up so UI can detect Guest Mode ***
       if (e.response?.statusCode == 403) {
         rethrow;
       }
@@ -90,11 +89,7 @@ class AuthRepository {
         throw ProfileException('Network error. Please check your connection.');
       }
     } catch (e) {
-      // If we just rethrew above, this catch block might catch it if not careful.
-      // But since DioException is specific, and this block catches generic 'e',
-      // we need to make sure we don't wrap the DioException we just rethrew.
       if (e is DioException) rethrow;
-
       print("🚨 UNEXPECTED ERROR: $e");
       throw ProfileException(
           'An unexpected error occurred while fetching your profile.');
@@ -338,6 +333,21 @@ class AuthRepository {
       }
     } catch (e) {
       throw GuestLoginException('An unexpected error occurred: $e');
+    }
+  }
+
+  // --- LOGOUT METHOD (NEW) ---
+  Future<void> logout(int sessionId) async {
+    try {
+      // Calls POST /api/auth/logout with {"sessionId": 20}
+      await _dio.post(
+        '/auth/logout',
+        data: {'sessionId': sessionId},
+      );
+    } catch (e) {
+      // We log the error but don't throw it, because we want the
+      // app to perform local logout even if the API fails.
+      print("⚠️ Server Logout failed: $e");
     }
   }
 }

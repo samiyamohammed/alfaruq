@@ -1,6 +1,7 @@
 import 'package:al_faruk_app/generated/app_localizations.dart'; // 1. Import Localization
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/history/screens/history_screen.dart'; // Import History Screen
 import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/generic_grid_screen.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/news_feed_screen.dart';
@@ -175,34 +176,44 @@ class _CustomDrawerState extends ConsumerState<CustomDrawer> {
 
                   // --- C. MAIN MENU ITEMS ---
 
-                  // 1. Tabs
+                  // 1. Yene Movie (Purchases)
                   _buildMenuItem(
                     icon: Icons.movie_outlined,
-                    label: l10n.yeneMovie, // Localized
+                    label: l10n.yeneMovie,
                     onTap: () => _navigateToTab(1),
                   ),
+
+                  // 2. Watch History (NEW)
+                  _buildMenuItem(
+                    icon: Icons.history,
+                    label: "Watch History", // You can localize this later
+                    onTap: () => _pushScreen(const HistoryScreen()),
+                  ),
+
+                  // 3. Khadim
                   _buildMenuItem(
                     icon: Icons.calendar_month_outlined,
-                    label: l10n.khadim, // Localized
+                    label: l10n.khadim,
                     onTap: () => _navigateToTab(3),
                   ),
+
+                  // 4. Iqra
                   _buildMenuItem(
                     icon: Icons.menu_book_outlined,
-                    label:
-                        l10n.iqraReadListen, // Localized "Iqra - Read & Listen"
+                    label: l10n.iqraReadListen,
                     onTap: () => _navigateToTab(4),
                   ),
 
-                  // 2. Content Pages
+                  // 5. Content Pages
                   _buildMenuItem(
                     icon: Icons.play_circle_outline,
-                    label: l10n.youtubeContent, // Localized
+                    label: l10n.youtubeContent,
                     onTap: () => _pushScreen(const YoutubePartnersPage()),
                   ),
 
                   _buildMenuItem(
                     icon: Icons.school_outlined,
-                    label: l10n.dawahFree, // Localized
+                    label: l10n.dawahFree,
                     onTap: () =>
                         _openCategoryGrid(l10n.dawahFree, "DAWAH", allItems),
                   ),
@@ -212,7 +223,7 @@ class _CustomDrawerState extends ConsumerState<CustomDrawer> {
                   // --- D. SETTINGS ---
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
-                    label: l10n.settings, // Localized
+                    label: l10n.settings,
                     onTap: () => _navigateToTab(5),
                   ),
 

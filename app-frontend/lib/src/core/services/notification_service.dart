@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -17,48 +16,70 @@ class NotificationService {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  // Unified Init Method
+  // Helper to ensure timezone is never null
+  static Future<void> _ensureTimezoneInitialized() async {
+    try {
+      // Accessing tz.local throws the error if not set.
+      // We check it inside a try block.
+      tz.local;
+    } catch (_) {
+      tz.initializeTimeZones();
+      try {
+        // FIX: Capture as dynamic or TimezoneInfo to handle the object return
+        final timezoneResult = await FlutterTimezone.getLocalTimezone();
+
+        // Access the 'name' property if it's a TimezoneInfo object,
+        // or use it directly if it's already a String.
+        String rawTimeZone;
+        if (timezoneResult is String) {
+          rawTimeZone = timezoneResult as String;
+        } else {
+          // Newer versions return a TimezoneInfo object which has a .name field
+          rawTimeZone = timezoneResult.toString();
+          // If the above still fails, use: rawTimeZone = (timezoneResult as dynamic).name;
+        }
+
+        if (rawTimeZone.contains('(')) {
+          rawTimeZone = rawTimeZone.split('(')[1].split(',')[0];
+        }
+
+        tz.setLocalLocation(tz.getLocation(rawTimeZone));
+      } catch (e) {
+        // Fallback to UTC if native lookup fails
+        tz.setLocalLocation(tz.getLocation('UTC'));
+      }
+    }
+  }
+
   static Future<void> init({bool isBackground = false}) async {
     if (!isBackground) logger.i("[NotificationService] Initializing...");
 
-    // 1. Timezone Setup
-    try {
-      tz.initializeTimeZones();
-      String rawTimeZone =
-          (await FlutterTimezone.getLocalTimezone()).toString();
-      // Handle "Asia/Calcutta(IST)" format
-      if (rawTimeZone.contains('(')) {
-        rawTimeZone = rawTimeZone.split('(')[1].split(',')[0];
-      }
-      tz.setLocalLocation(tz.getLocation(rawTimeZone));
-    } catch (e) {
-      if (!isBackground) logger.e("Timezone init failed", error: e);
-      tz.setLocalLocation(tz.getLocation('UTC'));
-    }
+    await _ensureTimezoneInitialized();
 
-    // 2. Plugin Setup
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
     await _notifications.initialize(settings);
 
-    // 3. Create Channel (Important for Android 8+)
     await _createNotificationChannels();
   }
 
   static Future<void> scheduleDailyPrayerNotifications() async {
     try {
-      // Access Prefs directly (No Riverpod)
+      // Ensure timezones are ready before doing anything else
+      await _ensureTimezoneInitialized();
+
       final prefs = await SharedPreferences.getInstance();
 
-      // Check global switch
-      if (prefs.getBool('remindersEnabled') == false) {
+      final bool isEnabled = prefs.getBool('remindersEnabled') ?? true;
+      if (!isEnabled) {
+        await _notifications.cancelAll();
+        print("🔕 Reminders disabled. Cancelled all notifications.");
         return;
       }
 
       await _scheduleAllPrayerTimes(prefs);
-    } catch (e, s) {
+    } catch (e) {
       print("❌ Error scheduling notifications: $e");
-      print(s);
     }
   }
 
@@ -69,6 +90,7 @@ class NotificationService {
       description: 'Channel for prayer time reminders.',
       importance: Importance.max,
       playSound: true,
+      enableVibration: true,
     );
 
     await _notifications
@@ -80,14 +102,12 @@ class NotificationService {
   static Future<void> _scheduleAllPrayerTimes(SharedPreferences prefs) async {
     Coordinates? coordinates;
 
-    // 1. Try Cached Location (Preferred for Background)
     final double? cachedLat = prefs.getDouble('latitude');
     final double? cachedLng = prefs.getDouble('longitude');
 
     if (cachedLat != null && cachedLng != null) {
       coordinates = Coordinates(cachedLat, cachedLng);
     } else {
-      // 2. Try Live Location (Only works if app is in foreground or specific permissions)
       try {
         LocationPermission permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.whileInUse ||
@@ -97,20 +117,21 @@ class NotificationService {
               timeLimit: const Duration(seconds: 5));
           coordinates = Coordinates(position.latitude, position.longitude);
         }
-      } catch (_) {
-        // Ignore errors in background
-      }
+      } catch (_) {}
     }
 
     if (coordinates == null) {
-      print("⚠️ No location found. Skipping schedule.");
+      print("⚠️ No coordinates available. Cannot schedule prayer times.");
       return;
     }
 
-    // Prepare Details
+    // Read Settings
     final bool isSoundEnabled = prefs.getBool('soundEnabled') ?? true;
-    final String soundName =
-        (prefs.getString('selectedSound') ?? 'adhan').split('.').first;
+    final bool isVibrationEnabled = prefs.getBool('vibrationEnabled') ?? true;
+
+    final String selectedSoundRaw =
+        prefs.getString('selectedSound') ?? 'adhan.mp3';
+    final String soundResourceName = selectedSoundRaw.split('.').first;
 
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -119,9 +140,10 @@ class NotificationService {
         channelDescription: 'Channel for prayer time reminders.',
         importance: Importance.max,
         priority: Priority.high,
-        fullScreenIntent: true, // Wakes up screen
+        fullScreenIntent: true,
+        enableVibration: isVibrationEnabled,
         sound: isSoundEnabled
-            ? RawResourceAndroidNotificationSound(soundName)
+            ? RawResourceAndroidNotificationSound(soundResourceName)
             : null,
       ),
     );
@@ -141,22 +163,18 @@ class NotificationService {
       "Isha": prayerTimes.isha,
     };
 
-    // Schedule
-    await _notifications.cancelAll(); // Clear old to avoid duplicates
+    await _notifications.cancelAll();
 
     for (var entry in prayersMap.entries) {
       final String prayerName = entry.key;
-      final DateTime rawTime = entry.value;
+      tz.TZDateTime scheduledTime = tz.TZDateTime.from(entry.value, tz.local);
 
-      tz.TZDateTime scheduledTime = tz.TZDateTime.from(rawTime, tz.local);
-
-      // CRITICAL FIX: If time passed today, schedule for tomorrow
-      // This ensures the daily repeat logic kicks in correctly.
       if (scheduledTime.isBefore(now)) {
         scheduledTime = scheduledTime.add(const Duration(days: 1));
       }
 
-      print("📅 Scheduled $prayerName for $scheduledTime");
+      print(
+          "📅 Scheduling $prayerName at $scheduledTime with sound: $soundResourceName");
 
       await _notifications.zonedSchedule(
         prayerName.hashCode,
@@ -167,7 +185,7 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time, // Repeats Daily
+        matchDateTimeComponents: DateTimeComponents.time,
       );
     }
   }

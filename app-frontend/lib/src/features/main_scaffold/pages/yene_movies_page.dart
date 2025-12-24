@@ -1,423 +1,385 @@
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:al_faruk_app/src/core/models/quran_models.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/common/screens/guest_restricted_screen.dart';
+import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/sheikh_detail_screen.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart';
-import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// --- UPDATED PROVIDER ---
+class FavoriteUIModel {
+  final String id;
+  final String title;
+  final String? subtitle;
+  final String? imageUrl;
+  final String type;
+  final bool isLocked;
+  final dynamic originalObject;
+  final String? languageId;
+
+  FavoriteUIModel({
+    required this.id,
+    required this.title,
+    this.subtitle,
+    this.imageUrl,
+    required this.type,
+    this.isLocked = false,
+    required this.originalObject,
+    this.languageId,
+  });
+}
+
 final myPurchasesProvider =
     FutureProvider.autoDispose<List<FeedItem>>((ref) async {
   final dio = ref.watch(dioProvider);
   try {
-    // FIX 1: Reduced limit to 20 to avoid "400 Bad Request" from server
-    final response = await dio.get('/feed/my-purchases', queryParameters: {
-      'page': 1,
-      'limit': 20,
-    });
-
+    final response = await dio
+        .get('/feed/my-purchases', queryParameters: {'page': 1, 'limit': 50});
     if (response.statusCode == 200) {
       final List data = response.data['data'] ?? [];
-      final List<FeedItem> validItems = [];
-
-      for (var json in data) {
-        try {
-          validItems.add(FeedItem.fromJson(json));
-        } catch (e) {
-          debugPrint("⚠️ Skipping invalid item: ${json['title']} - Error: $e");
-        }
-      }
-      return validItems;
+      return data.map((json) => FeedItem.fromJson(json)).toList();
     }
     return [];
   } catch (e) {
-    if (e is DioException) {
-      // Pass the DioException through so we can read the status code/message in UI
-      throw e;
-    }
-    throw e;
+    rethrow;
   }
 });
 
 class YeneMoviesPage extends ConsumerStatefulWidget {
   const YeneMoviesPage({super.key});
-
   @override
   ConsumerState<YeneMoviesPage> createState() => _YeneMoviesPageState();
 }
 
-class _YeneMoviesPageState extends ConsumerState<YeneMoviesPage> {
+class _YeneMoviesPageState extends ConsumerState<YeneMoviesPage>
+    with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(myPurchasesProvider);
+      ref.read(bookmarksProvider.notifier).fetchBookmarks();
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
   }
 
-  void _onTabSelected(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(myPurchasesProvider);
+      ref.read(bookmarksProvider.notifier).fetchBookmarks();
+    }
+  }
+
+  List<FeedItem> _flattenFeed(List<FeedItem> items) {
+    List<FeedItem> flattened = [];
+    for (var i in items) {
+      flattened.add(i);
+      if (i.children.isNotEmpty) flattened.addAll(_flattenFeed(i.children));
+    }
+    return flattened;
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final purchasesState = ref.watch(myPurchasesProvider);
+    final bookmarksState = ref.watch(bookmarksProvider);
+    final topLevelFeed = ref.watch(feedContentProvider).value ?? [];
+    final languages = ref.watch(quranLanguagesProvider).value ?? [];
 
     return Scaffold(
       key: _scaffoldKey,
       endDrawer: const CustomDrawer(),
       backgroundColor: const Color(0xFF0B101D),
       appBar: CustomAppBar(
-        isSubPage: true,
-        title: l10n.yeneMovie,
-        scaffoldKey: _scaffoldKey,
-        onLeadingPressed: () {
-          ref.read(bottomNavIndexProvider.notifier).state = 0;
+          isSubPage: true,
+          title: l10n.yeneMovie,
+          scaffoldKey: _scaffoldKey,
+          onLeadingPressed: () =>
+              ref.read(bottomNavIndexProvider.notifier).state = 0),
+      body: RefreshIndicator(
+        color: const Color(0xFFCFB56C),
+        onRefresh: () async {
+          ref.refresh(myPurchasesProvider);
+          return ref.read(bookmarksProvider.notifier).fetchBookmarks();
         },
-      ),
-      body: purchasesState.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: Color(0xFFCFB56C)),
-        ),
-        error: (err, stack) {
-          // 1. Handle Guest Access
-          if (err is DioException && err.response?.statusCode == 403) {
-            return const GuestRestrictedScreen();
-          }
+        child: purchasesState.when(
+          loading: () => const Center(
+              child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
+          error: (err, stack) => const Center(
+              child: Text("Error Loading Purchases",
+                  style: TextStyle(color: Colors.white))),
+          data: (allPurchases) {
+            final movies = allPurchases
+                .where(
+                    (i) => ['MOVIE', 'SERIES', 'DOCUMENTARY'].contains(i.type))
+                .toList();
+            final nasheeds = allPurchases
+                .where((i) => ['MUSIC_VIDEO', 'NASHEED'].contains(i.type))
+                .toList();
 
-          // 2. Extract Server Error Message (for 400 Bad Request)
-          String errorMsg = "Something went wrong";
-          if (err is DioException && err.response?.data != null) {
-            final data = err.response!.data;
-            // Try to find the 'message' field in the error response
-            if (data is Map && data['message'] != null) {
-              errorMsg = data['message'].toString();
-            } else if (data is String) {
-              errorMsg = data;
+            final favIds = bookmarksState.value ?? {};
+            List<FavoriteUIModel> combinedFavs = [];
+
+            // 1. Add Feed Items
+            for (var item in _flattenFeed(topLevelFeed)) {
+              if (favIds.contains(item.id)) {
+                combinedFavs.add(FavoriteUIModel(
+                    id: item.id,
+                    title: item.title,
+                    imageUrl: item.thumbnailUrl,
+                    type: item.type,
+                    isLocked: item.isLocked,
+                    originalObject: item));
+              }
             }
-          }
 
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.grey, size: 50),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Error Loading Purchases",
-                    style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  // Display the specific server error
-                  Text(
-                    errorMsg,
-                    textAlign: TextAlign.center,
-                    style:
-                        TextStyle(color: Colors.redAccent[100], fontSize: 13),
-                  ),
-                  const SizedBox(height: 24),
-                  TextButton.icon(
-                    onPressed: () => ref.refresh(myPurchasesProvider),
-                    icon: const Icon(Icons.refresh, color: Color(0xFFCFB56C)),
-                    label: const Text("Retry",
-                        style: TextStyle(color: Color(0xFFCFB56C))),
-                  )
-                ],
-              ),
-            ),
-          );
-        },
-        data: (allPurchases) {
-          // --- 1. MERGE MOVIES, SERIES, & DOCUMENTARIES ---
-          final videoLibrary = allPurchases.where((i) {
-            return ['MOVIE', 'SERIES', 'DOCUMENTARY'].contains(i.type);
-          }).toList();
+            // 2. Add Reciters & Recitations
+            for (var lang in languages) {
+              final reciters =
+                  ref.watch(quranRecitersProvider(lang.id)).value ?? [];
+              for (var r in reciters) {
+                // Check Sheikhs
+                if (favIds.contains(r.id) &&
+                    !combinedFavs.any((x) => x.id == r.id)) {
+                  combinedFavs.add(FavoriteUIModel(
+                      id: r.id,
+                      title: r.name,
+                      imageUrl: r.imageUrl,
+                      type: 'reciter',
+                      originalObject: r,
+                      languageId: lang.id));
+                }
 
-          // --- 2. NASHEEDS ---
-          final nasheedsList = allPurchases.where((i) {
-            return ['MUSIC_VIDEO', 'NASHEED'].contains(i.type);
-          }).toList();
+                // Check Individual Surahs (Tafsirs)
+                final String recitationsKey = "${r.id}|${lang.id}";
+                final recitationsItems = ref
+                        .watch(reciterRecitationsProvider(recitationsKey))
+                        .value ??
+                    [];
+                for (var rItem in recitationsItems) {
+                  for (var rec in rItem.recitations) {
+                    if (favIds.contains(rec.id) &&
+                        !combinedFavs.any((x) => x.id == rec.id)) {
+                      combinedFavs.add(FavoriteUIModel(
+                          id: rec.id,
+                          title: rec.title,
+                          subtitle: r.name,
+                          imageUrl: r.imageUrl,
+                          type: 'tafsir',
+                          originalObject: r,
+                          languageId: lang.id));
+                    }
+                  }
+                }
+              }
+            }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  l10n.yourSavedMovies,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Text(
-                  l10n.swipeToSwitch,
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // --- TABS ---
-              Container(
-                height: 50,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(l10n.yourSavedMovies,
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 14))),
+                const SizedBox(height: 16),
+                Container(
+                  height: 50,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(children: [
                     Expanded(
                         child: _buildTabButton(
-                            l10n.navMovies, Icons.movie_outlined, 0)),
+                            "Movies / Series", Icons.movie_filter_outlined, 0)),
                     const SizedBox(width: 8),
                     Expanded(
                         child: _buildTabButton(
                             l10n.nasheeds, Icons.music_note_outlined, 1)),
                     const SizedBox(width: 8),
                     Expanded(
-                        child: _buildTabButton(
-                            l10n.favorites, Icons.star_border, 2)),
-                  ],
+                        child:
+                            _buildTabButton(l10n.favorites, Icons.favorite, 2)),
+                  ]),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // --- CONTENT PAGES ---
-              Expanded(
-                child: PageView(
+                const SizedBox(height: 20),
+                Expanded(
+                    child: PageView(
                   controller: _pageController,
-                  onPageChanged: (index) =>
-                      setState(() => _selectedIndex = index),
+                  onPageChanged: (i) => setState(() => _selectedIndex = i),
                   children: [
-                    // TAB 0: Video Library
-                    videoLibrary.isEmpty
+                    movies.isEmpty
+                        ? _buildEmptyState(Icons.movie, "No Movies",
+                            l10n.addMoviesHint, l10n.browseContent)
+                        : _buildContentGrid(movies
+                            .map((m) => FavoriteUIModel(
+                                id: m.id,
+                                title: m.title,
+                                imageUrl: m.thumbnailUrl,
+                                type: m.type,
+                                isLocked: m.isLocked,
+                                originalObject: m))
+                            .toList()),
+                    nasheeds.isEmpty
                         ? _buildEmptyState(
-                            icon: Icons.local_movies_outlined,
-                            message: l10n.noSavedMovies,
-                            subMessage: l10n.addMoviesHint,
-                            buttonLabel: l10n.browseContent,
-                          )
-                        : _buildContentGrid(videoLibrary),
-
-                    // TAB 1: Nasheeds
-                    nasheedsList.isEmpty
+                            Icons.music_note,
+                            l10n.noSavedNasheeds,
+                            l10n.addNasheedsHint,
+                            l10n.browseContent)
+                        : _buildContentGrid(nasheeds
+                            .map((n) => FavoriteUIModel(
+                                id: n.id,
+                                title: n.title,
+                                imageUrl: n.thumbnailUrl,
+                                type: n.type,
+                                isLocked: n.isLocked,
+                                originalObject: n))
+                            .toList()),
+                    combinedFavs.isEmpty
                         ? _buildEmptyState(
-                            icon: Icons.music_off_outlined,
-                            message: l10n.noSavedNasheeds,
-                            subMessage: l10n.addNasheedsHint,
-                            buttonLabel: l10n.browseContent,
-                          )
-                        : _buildContentGrid(nasheedsList),
-
-                    // TAB 2: Favorites
-                    _buildEmptyState(
-                      icon: Icons.star_border,
-                      message: l10n.noFavoritesYet,
-                      subMessage: l10n.markFavoritesHint,
-                      buttonLabel: l10n.browseContent,
-                    ),
+                            Icons.favorite_border,
+                            l10n.noFavoritesYet,
+                            l10n.markFavoritesHint,
+                            l10n.browseContent)
+                        : _buildContentGrid(combinedFavs),
                   ],
-                ),
-              ),
-            ],
-          );
-        },
+                )),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  // --- GRID WIDGET ---
-  Widget _buildContentGrid(List<FeedItem> items) {
+  Widget _buildContentGrid(List<FavoriteUIModel> items) {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
+          crossAxisCount: 2,
+          childAspectRatio: 0.7,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final isSeries = item.type == 'SERIES';
+        final bool isAudio = item.type == 'reciter' || item.type == 'tafsir';
 
         return GestureDetector(
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ContentPlayerScreen(
-                  contentId: item.id,
-                  relatedContent: items,
-                ),
-              ),
-            );
+            if (isAudio) {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => SheikhDetailScreen(
+                          reciter: item.originalObject,
+                          languageId: item.languageId ?? 'all')));
+            } else {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => ContentPlayerScreen(contentId: item.id)));
+            }
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        image: DecorationImage(
-                          image: NetworkImage(item.thumbnailUrl ?? ''),
-                          fit: BoxFit.cover,
-                        ),
-                        color: Colors.grey[900],
-                      ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.black26,
-                      ),
-                    ),
-                    Center(
-                      child: item.isLocked
-                          ? const Icon(Icons.lock,
-                              color: Colors.white, size: 32)
-                          : Icon(
-                              isSeries
-                                  ? Icons.playlist_play_rounded
-                                  : Icons.play_circle_fill,
-                              color: Colors.white70,
-                              size: 40,
-                            ),
-                    ),
-                    if (isSeries)
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFCFB56C),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            "SERIES",
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                item.title,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: Container(
+              decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                      image: NetworkImage(item.imageUrl ?? ''),
+                      fit: BoxFit.cover),
+                  color: const Color(0xFF151E32)),
+              child: Center(
+                  child: item.isLocked
+                      ? const Icon(Icons.lock, color: Colors.white, size: 32)
+                      : Icon(isAudio ? Icons.mic : Icons.play_circle_fill,
+                          color: Colors.white70, size: 40)),
+            )),
+            const SizedBox(height: 8),
+            Text(item.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                item.type.replaceAll('_', ' '),
-                style: const TextStyle(color: Colors.grey, fontSize: 11),
-              ),
-            ],
-          ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
+            if (item.subtitle != null)
+              Text(item.subtitle!,
+                  maxLines: 1,
+                  style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            Text(item.type.replaceAll('_', ' ').toUpperCase(),
+                style: const TextStyle(color: Color(0xFFCFB56C), fontSize: 10)),
+          ]),
         );
       },
     );
   }
 
   Widget _buildTabButton(String label, IconData icon, int index) {
-    final bool isSelected = _selectedIndex == index;
+    final bool isSel = _selectedIndex == index;
     return GestureDetector(
-      onTap: () => _onTabSelected(index),
+      onTap: () {
+        setState(() => _selectedIndex = index);
+        _pageController.animateToPage(index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut);
+      },
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFCFB56C) : const Color(0xFF151E32),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon,
-                size: 18, color: isSelected ? Colors.black : Colors.grey),
-            const SizedBox(width: 8),
-            Text(label,
-                style: TextStyle(
-                    color: isSelected ? Colors.black : Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13)),
-          ],
-        ),
+            color: isSel ? const Color(0xFFCFB56C) : const Color(0xFF151E32),
+            borderRadius: BorderRadius.circular(4)),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 18, color: isSel ? Colors.black : Colors.grey),
+          const SizedBox(width: 8),
+          Flexible(
+              child: Text(label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: isSel ? Colors.black : Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12))),
+        ]),
       ),
     );
   }
 
-  Widget _buildEmptyState(
-      {required IconData icon,
-      required String message,
-      required String subMessage,
-      required String buttonLabel}) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 60, color: const Color(0xFFCFB56C)),
-        const SizedBox(height: 24),
-        Text(message,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text(subMessage,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 14)),
-        const SizedBox(height: 32),
-        SizedBox(
-          width: 200,
-          height: 50,
-          child: ElevatedButton(
-            onPressed: () {
-              ref.read(bottomNavIndexProvider.notifier).state = 0;
-            },
-            style: ElevatedButton.styleFrom(
+  Widget _buildEmptyState(IconData icon, String msg, String sub, String btn) {
+    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(icon, size: 60, color: const Color(0xFFCFB56C)),
+      const SizedBox(height: 24),
+      Text(msg,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      Text(sub,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white54, fontSize: 14)),
+      const SizedBox(height: 32),
+      ElevatedButton(
+          onPressed: () => ref.read(bottomNavIndexProvider.notifier).state = 0,
+          style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFCFB56C),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4)),
-            ),
-            child: Text(buttonLabel,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
-        ),
-        const SizedBox(height: 100),
-      ],
-    );
+              foregroundColor: Colors.black),
+          child: Text(btn)),
+      const SizedBox(height: 100),
+    ]);
   }
 }

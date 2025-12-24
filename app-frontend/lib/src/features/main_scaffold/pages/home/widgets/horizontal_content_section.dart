@@ -1,17 +1,19 @@
 import 'dart:async';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/book_detail_screen.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/iqra_library_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/prophet_history_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class HorizontalContentSection extends StatefulWidget {
+class HorizontalContentSection extends ConsumerStatefulWidget {
   final String title;
   final List<FeedItem> items;
   final bool isPortrait;
   final bool isLandscape;
-  final VoidCallback? onSeeAll; // <--- THIS WAS MISSING IN YOUR FILE
+  final VoidCallback? onSeeAll;
 
   const HorizontalContentSection({
     super.key,
@@ -19,15 +21,16 @@ class HorizontalContentSection extends StatefulWidget {
     required this.items,
     this.isPortrait = false,
     this.isLandscape = false,
-    this.onSeeAll, // <--- ENSURE THIS IS HERE
+    this.onSeeAll,
   });
 
   @override
-  State<HorizontalContentSection> createState() =>
+  ConsumerState<HorizontalContentSection> createState() =>
       _HorizontalContentSectionState();
 }
 
-class _HorizontalContentSectionState extends State<HorizontalContentSection> {
+class _HorizontalContentSectionState
+    extends ConsumerState<HorizontalContentSection> {
   late ScrollController _scrollController;
   Timer? _autoScrollTimer;
 
@@ -73,6 +76,7 @@ class _HorizontalContentSectionState extends State<HorizontalContentSection> {
   Widget build(BuildContext context) {
     final double width = widget.isPortrait ? 120 : 180;
     final double height = widget.isPortrait ? 180 : 140;
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +95,7 @@ class _HorizontalContentSectionState extends State<HorizontalContentSection> {
                       fontWeight: FontWeight.bold),
                 ),
                 GestureDetector(
-                  onTap: widget.onSeeAll, // <--- WIRED UP HERE
+                  onTap: widget.onSeeAll,
                   child: const Text("See All",
                       style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ),
@@ -108,6 +112,8 @@ class _HorizontalContentSectionState extends State<HorizontalContentSection> {
             separatorBuilder: (c, i) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = widget.items[index];
+              final bool isFav = bookmarkedIds.contains(item.id);
+
               return GestureDetector(
                 onTap: () {
                   if (item.type == 'PROPHET_HISTORY') {
@@ -156,6 +162,7 @@ class _HorizontalContentSectionState extends State<HorizontalContentSection> {
                   ),
                   child: Stack(
                     children: [
+                      // Gradient Overlay
                       Positioned(
                         bottom: 0,
                         left: 0,
@@ -174,6 +181,28 @@ class _HorizontalContentSectionState extends State<HorizontalContentSection> {
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                                 stops: const [0.0, 0.5, 1.0]),
+                          ),
+                        ),
+                      ),
+                      // Bookmark Icon
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: GestureDetector(
+                          onTap: () => ref
+                              .read(bookmarksProvider.notifier)
+                              .toggleBookmark(item),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.black45,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isFav ? Icons.favorite : Icons.favorite_border,
+                              color: isFav ? Colors.red : Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
                       ),

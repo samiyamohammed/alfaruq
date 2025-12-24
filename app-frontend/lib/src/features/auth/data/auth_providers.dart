@@ -40,6 +40,69 @@ final youtubeServiceProvider = Provider<YouTubeService>((ref) {
   return YouTubeService(dio: dio);
 });
 
+// --- BOOKMARKS LOGIC ---
+
+class BookmarksNotifier extends StateNotifier<AsyncValue<Set<String>>> {
+  final Dio dio;
+  BookmarksNotifier(this.dio) : super(const AsyncValue.loading()) {
+    fetchBookmarks();
+  }
+
+  Future<void> fetchBookmarks() async {
+    try {
+      final response = await dio.get('/bookmarks');
+      if (response.statusCode == 200) {
+        final List items = response.data['items'] ?? [];
+        final set = items.map((e) => e['itemId'].toString()).toSet();
+        state = AsyncValue.data(set);
+      }
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> toggleBookmark(FeedItem item) async {
+    await _performToggle(item.id, item.type);
+  }
+
+  Future<void> toggleReciterBookmark(QuranReciter reciter) async {
+    await _performToggle(reciter.id, 'reciter');
+  }
+
+  // FIX: Added for individual Surah/Recitations
+  Future<void> toggleTafsirBookmark(QuranRecitation recitation) async {
+    await _performToggle(recitation.id, 'tafsir');
+  }
+
+  Future<void> _performToggle(String itemId, String type) async {
+    final currentSet = state.value ?? {};
+    final isBookmarked = currentSet.contains(itemId);
+
+    try {
+      if (isBookmarked) {
+        await dio.delete('/bookmarks', data: {
+          'type': type,
+          'itemId': itemId,
+        });
+        state = AsyncValue.data({...currentSet}..remove(itemId));
+      } else {
+        await dio.post('/bookmarks', data: {
+          'type': type,
+          'itemId': itemId,
+        });
+        state = AsyncValue.data({...currentSet}..add(itemId));
+      }
+    } catch (e) {
+      print("Bookmark Toggle Error: $e");
+    }
+  }
+}
+
+final bookmarksProvider =
+    StateNotifierProvider<BookmarksNotifier, AsyncValue<Set<String>>>((ref) {
+  return BookmarksNotifier(ref.watch(dioProvider));
+});
+
 final youtubeContentProvider = FutureProvider<List<YoutubeVideo>>((ref) async {
   final dio = ref.watch(dioProvider);
   try {
@@ -216,4 +279,3 @@ final newsProvider = FutureProvider<List<NewsItem>>((ref) async {
     throw _handleError(e);
   }
 });
-

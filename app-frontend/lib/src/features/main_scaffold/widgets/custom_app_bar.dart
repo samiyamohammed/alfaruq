@@ -1,5 +1,6 @@
 import 'package:al_faruk_app/src/features/notifications/logic/notification_provider.dart';
 import 'package:al_faruk_app/src/features/notifications/screens/notification_center_screen.dart';
+import 'package:al_faruk_app/src/features/search/screens/search_results_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,7 +10,8 @@ class CustomAppBar extends ConsumerStatefulWidget
   final bool isSubPage;
   final String? title;
   final VoidCallback? onLeadingPressed;
-  // Callback to handle search input from the parent screen
+  // This callback is now optional, used if a specific page wants to handle search itself
+  // otherwise, we default to the global search screen.
   final ValueChanged<String>? onSearchChanged;
 
   const CustomAppBar({
@@ -38,10 +40,6 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationListProvider.notifier).fetchNotifications();
     });
-
-    _searchController.addListener(() {
-      widget.onSearchChanged?.call(_searchController.text);
-    });
   }
 
   @override
@@ -55,9 +53,24 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
       _isSearching = !_isSearching;
       if (!_isSearching) {
         _searchController.clear();
+        // If local search handler exists, notify it
         widget.onSearchChanged?.call("");
       }
     });
+  }
+
+  void _performGlobalSearch(String query) {
+    if (query.trim().isEmpty) return;
+
+    // Close the search bar visual state
+    _toggleSearch();
+
+    // Navigate to Results Screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SearchResultsScreen(query: query),
+      ),
+    );
   }
 
   @override
@@ -69,10 +82,10 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
       elevation: 0,
       scrolledUnderElevation: 0,
       automaticallyImplyLeading: false,
-      centerTitle: widget.isSubPage,
+      centerTitle: false,
       titleSpacing: widget.isSubPage ? 0 : 16.0,
 
-      // --- LEADING: Back or Close Search ---
+      // --- LEADING ---
       leading: _isSearching
           ? IconButton(
               icon: const Icon(Icons.close, color: Colors.white),
@@ -92,12 +105,28 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
                 )
               : null),
 
-      // --- TITLE: Text or Search Field ---
+      // --- TITLE ---
       title: _isSearching
           ? TextField(
               controller: _searchController,
               autofocus: true,
               style: const TextStyle(color: Colors.white),
+              textInputAction: TextInputAction.search, // Show 'Search' button
+              onSubmitted: (value) {
+                if (widget.onSearchChanged != null) {
+                  // Local page override
+                  widget.onSearchChanged!(value);
+                } else {
+                  // Global Search
+                  _performGlobalSearch(value);
+                }
+              },
+              onChanged: (value) {
+                // Keep local listeners updated if they exist
+                if (widget.onSearchChanged != null) {
+                  widget.onSearchChanged!(value);
+                }
+              },
               decoration: const InputDecoration(
                 hintText: "Search...",
                 hintStyle: TextStyle(color: Colors.white54),
@@ -107,6 +136,8 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
           : (widget.isSubPage && widget.title != null
               ? Text(
                   widget.title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFFCFB56C),
                     fontSize: 20,
@@ -144,23 +175,12 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
 
       // --- ACTIONS ---
       actions: [
-        // Only show Search Icon if NOT currently searching
         if (!_isSearching)
           IconButton(
             icon: const Icon(Icons.search, size: 26, color: Colors.white),
             style: IconButton.styleFrom(backgroundColor: Colors.white10),
-            onPressed: () {
-              if (widget.onSearchChanged != null) {
-                // Enable local search mode
-                _toggleSearch();
-              } else {
-                // Global search placeholder
-                debugPrint("Global Search tapped");
-              }
-            },
+            onPressed: _toggleSearch,
           ),
-
-        // Hide other icons while searching to save space
         if (!_isSearching) ...[
           const SizedBox(width: 8),
           IconButton(

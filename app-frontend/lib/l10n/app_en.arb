@@ -210,5 +210,10 @@
     "watchNow": "WATCH NOW",
     "addList": "Add List",
     "movieDetails": "Movie Details",
-    "watchFree": "WATCH FREE"
+    "watchFree": "WATCH FREE",
+
+    "comingSoon": "Coming Soon",
+    "comingSoonDesc": "We are working hard to bring this feature to you. We will notify you once it's live!",
+   "notifyMe": "NOTIFY ME",
+   "ok": "OK"
 }

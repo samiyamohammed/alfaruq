@@ -3,7 +3,6 @@ import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/sheikh_detail_screen.dart';
-import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,21 +40,15 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
         final currentScroll = _scrollController.offset;
         final maxScroll = _scrollController.position.maxScrollExtent;
         const double slideDistance = 156.0;
-
         double targetScroll = currentScroll + slideDistance;
 
         if (targetScroll >= maxScroll + 10) {
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(seconds: 1),
-            curve: Curves.easeInOut,
-          );
+          _scrollController.animateTo(0,
+              duration: const Duration(seconds: 1), curve: Curves.easeInOut);
         } else {
-          _scrollController.animateTo(
-            targetScroll,
-            duration: const Duration(milliseconds: 800),
-            curve: Curves.fastOutSlowIn,
-          );
+          _scrollController.animateTo(targetScroll,
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.fastOutSlowIn);
         }
       }
     });
@@ -76,28 +69,21 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- 1. HEADER ---
-        // Added top padding to separate from previous section
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
           child: Text(
             l10n.quranTafseer,
             style: const TextStyle(
-              color: Color(0xFFCFB56C),
-              fontSize: 20, // Slightly larger for better hierarchy
-              fontWeight: FontWeight.bold,
-            ),
+                color: Color(0xFFCFB56C),
+                fontSize: 20,
+                fontWeight: FontWeight.bold),
           ),
         ),
-
-        // --- 2. Language Filters & Content ---
         languagesAsync.when(
           loading: () => const SizedBox(height: 40),
           error: (e, s) => const SizedBox.shrink(),
           data: (languages) {
             if (languages.isEmpty) return const SizedBox.shrink();
-
-            // Default to first language
             if (_selectedLanguageId == null) {
               Future.microtask(() {
                 if (mounted)
@@ -109,9 +95,8 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // A. Chips List
                 SizedBox(
-                  height: 36, // Compact height
+                  height: 36,
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     scrollDirection: Axis.horizontal,
@@ -120,7 +105,6 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
                     itemBuilder: (context, index) {
                       final lang = languages[index];
                       final isSelected = currentId == lang.id;
-
                       return GestureDetector(
                         onTap: () =>
                             setState(() => _selectedLanguageId = lang.id),
@@ -134,10 +118,9 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
                                 : const Color(0xFF151E32),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: isSelected
-                                  ? const Color(0xFFCFB56C)
-                                  : Colors.white12,
-                            ),
+                                color: isSelected
+                                    ? const Color(0xFFCFB56C)
+                                    : Colors.white12),
                           ),
                           alignment: Alignment.center,
                           child: Text(
@@ -155,31 +138,22 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
                     },
                   ),
                 ),
-
-                // B. "See All" Button
                 Padding(
                   padding: const EdgeInsets.fromLTRB(0, 12, 16, 8),
                   child: GestureDetector(
                     onTap: () => widget.onSeeAll?.call(currentId),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          "See All",
-                          style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_ios,
+                        Text("See All",
+                            style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios,
                             size: 10, color: Colors.grey),
                       ],
                     ),
                   ),
                 ),
-
-                // C. Reciters Content
                 _buildRecitersList(currentId),
               ],
             );
@@ -191,6 +165,7 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
 
   Widget _buildRecitersList(String languageId) {
     final recitersAsync = ref.watch(quranRecitersProvider(languageId));
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
 
     return SizedBox(
       height: 180,
@@ -199,11 +174,7 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
             child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
         error: (e, s) => const SizedBox.shrink(),
         data: (reciters) {
-          if (reciters.isEmpty) {
-            return const Center(
-                child: Text("No content available",
-                    style: TextStyle(color: Colors.white24)));
-          }
+          if (reciters.isEmpty) return const SizedBox.shrink();
 
           return ListView.separated(
             controller: _scrollController,
@@ -213,39 +184,27 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
             separatorBuilder: (_, __) => const SizedBox(width: 16),
             itemBuilder: (context, index) {
               final item = reciters[index];
+              final bool isFav = bookmarkedIds.contains(item.id);
+
               return GestureDetector(
                 onTap: () {
                   Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SheikhDetailScreen(
-                        reciter: item,
-                        languageId: languageId,
-                      ),
-                    ),
-                  );
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => SheikhDetailScreen(
+                              reciter: item, languageId: languageId)));
                 },
                 child: Container(
                   width: 140,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     image: DecorationImage(
-                      image: NetworkImage(item.imageUrl ?? ''),
-                      fit: BoxFit.cover,
-                      onError: (_, __) {},
-                    ),
+                        image: NetworkImage(item.imageUrl ?? ''),
+                        fit: BoxFit.cover),
                     color: const Color(0xFF151E32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
                   child: Stack(
                     children: [
-                      // Gradient Overlay for Text Readability
                       Positioned(
                         bottom: 0,
                         left: 0,
@@ -256,18 +215,35 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
                             borderRadius: const BorderRadius.vertical(
                                 bottom: Radius.circular(12)),
                             gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.8),
-                                Colors.black
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.8),
+                                  Colors.black
+                                ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter),
                           ),
                         ),
                       ),
-                      // Reciter Name
+                      // HEART ICON
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: GestureDetector(
+                          onTap: () => ref
+                              .read(bookmarksProvider.notifier)
+                              .toggleReciterBookmark(item),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                                color: Colors.black45, shape: BoxShape.circle),
+                            child: Icon(
+                                isFav ? Icons.favorite : Icons.favorite_border,
+                                color: isFav ? Colors.red : Colors.white,
+                                size: 14),
+                          ),
+                        ),
+                      ),
                       Positioned(
                         bottom: 12,
                         left: 8,
@@ -278,11 +254,10 @@ class _TafsirSectionState extends ConsumerState<TafsirSection> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            height: 1.2,
-                          ),
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              height: 1.2),
                         ),
                       ),
                     ],

@@ -209,9 +209,12 @@
     "watchNow": "አሁን ይመልከቱ",
     "addList": "ዝርዝር ያክሉ",
     "movieDetails": "የፊልም ዝርዝሮች",
-    "watchFree": "በነፃ ይመልከቱ"
+    "watchFree": "በነፃ ይመልከቱ",
 
     
-
+    "comingSoon": "በቅርቡ ይጠብቁ",
+    "comingSoonDesc": "ይህንን አገልግሎት ለእርስዎ ለማቅረብ ጠንክረን እየሰራን ነው። ዝግጁ ሲሆን እናሳውቆታለን!",
+    "notifyMe": "ሲመጣ አሳውቀኝ",
+    "ok": "እሺ"
 
 }

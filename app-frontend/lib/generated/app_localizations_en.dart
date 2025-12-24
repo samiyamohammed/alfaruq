@@ -554,4 +554,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get watchFree => 'WATCH FREE';
+
+  @override
+  String get comingSoonDesc =>
+      'We are working hard to bring this feature to you. We will notify you once it\'s live!';
+
+  @override
+  String get notifyMe => 'NOTIFY ME';
+
+  @override
+  String get ok => 'OK';
 }

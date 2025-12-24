@@ -29,7 +29,6 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Listen to search input changes
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.trim().toLowerCase();
@@ -46,12 +45,17 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-
-    // 1. Fetch Structure
     final structureAsync = ref.watch(quranStructureProvider);
 
-    // 2. Fetch Recitations
-    final String providerKey = "${widget.reciter.id}|${widget.languageId}";
+    String effectiveLanguageId = widget.languageId;
+    if (effectiveLanguageId == 'all') {
+      final languages = ref.watch(quranLanguagesProvider).valueOrNull;
+      if (languages != null && languages.isNotEmpty) {
+        effectiveLanguageId = languages.first.id;
+      }
+    }
+
+    final String providerKey = "${widget.reciter.id}|$effectiveLanguageId";
     final contentAsync = ref.watch(reciterRecitationsProvider(providerKey));
 
     return Scaffold(
@@ -63,7 +67,6 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
         title: widget.reciter.name,
         scaffoldKey: _scaffoldKey,
         onLeadingPressed: () => Navigator.pop(context),
-        // Handle Search from AppBar
         onSearchChanged: (query) {
           setState(() {
             _searchQuery = query.trim().toLowerCase();
@@ -84,11 +87,9 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
                 child: Text("Audio Error: $e",
                     style: const TextStyle(color: Colors.white))),
             data: (contentItems) {
-              // 1. Map Data (Surah ID -> Recitation Object)
               final Map<int, QuranRecitation> recitationMap = {};
               for (var item in contentItems) {
                 if (item.recitations.isNotEmpty) {
-                  // We map the whole recitation object, not just the URL
                   recitationMap[item.surah.id] = item.recitations.first;
                 }
               }
@@ -99,30 +100,21 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
                         style: const TextStyle(color: Colors.white54)));
               }
 
-              // 2. Filter & Build List
               final List<Widget> listWidgets = [];
 
               for (var juz in juzList) {
-                // Filter Surahs inside this Juz
                 final filteredSurahs = juz.surahs.where((surah) {
-                  // A. Must have audio available
                   if (!recitationMap.containsKey(surah.id)) return false;
-
-                  // B. If search is empty, show all
                   if (_searchQuery.isEmpty) return true;
-
-                  // C. Check Search Matches
                   final bool nameMatch =
                       surah.name.toLowerCase().contains(_searchQuery);
                   final bool juzMatch =
                       juz.name.toLowerCase().contains(_searchQuery);
                   final bool numberMatch =
                       surah.id.toString().contains(_searchQuery);
-
                   return nameMatch || juzMatch || numberMatch;
                 }).toList();
 
-                // Only add Juz header if it has visible content
                 if (filteredSurahs.isNotEmpty) {
                   listWidgets.add(
                     Padding(
@@ -143,13 +135,11 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: _SurahTile(
                         surah: surah,
-                        recitation:
-                            recitationMap[surah.id]!, // Pass full object
+                        recitation: recitationMap[surah.id]!,
                         l10n: l10n,
                       ),
                     ));
                   }
-
                   listWidgets.add(const SizedBox(height: 12));
                 }
               }
@@ -172,9 +162,9 @@ class _SheikhDetailScreenState extends ConsumerState<SheikhDetailScreen> {
   }
 }
 
-class _SurahTile extends StatefulWidget {
+class _SurahTile extends ConsumerStatefulWidget {
   final QuranSurah surah;
-  final QuranRecitation recitation; // Changed from audioUrl to full object
+  final QuranRecitation recitation;
   final AppLocalizations l10n;
 
   const _SurahTile({
@@ -184,10 +174,10 @@ class _SurahTile extends StatefulWidget {
   });
 
   @override
-  State<_SurahTile> createState() => _SurahTileState();
+  ConsumerState<_SurahTile> createState() => _SurahTileState();
 }
 
-class _SurahTileState extends State<_SurahTile> {
+class _SurahTileState extends ConsumerState<_SurahTile> {
   VideoPlayerController? _controller;
   bool _isPlaying = false;
   bool _isInitialized = false;
@@ -243,16 +233,18 @@ class _SurahTileState extends State<_SurahTile> {
 
   @override
   Widget build(BuildContext context) {
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
+    final bool isFav = bookmarkedIds.contains(widget.recitation.id);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF151E32), // Dark Blue Card
+        color: const Color(0xFF151E32),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white10),
       ),
       child: Column(
         children: [
-          // --- TOP PART: Player Control & Mini Info ---
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -279,19 +271,16 @@ class _SurahTileState extends State<_SurahTile> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Title from Recitation (e.g. "Al Baqarah")
                       Text(
                         widget.recitation.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14),
                       ),
                       const SizedBox(height: 4),
-                      // Duration / Status
                       Text(
                         _isInitialized
                             ? "${_formatDuration(_position)} / ${_formatDuration(_duration)}"
@@ -302,11 +291,20 @@ class _SurahTileState extends State<_SurahTile> {
                     ],
                   ),
                 ),
+                // HEART ICON NEXT TO PLAY INFO
+                IconButton(
+                  onPressed: () => ref
+                      .read(bookmarksProvider.notifier)
+                      .toggleTafsirBookmark(widget.recitation),
+                  icon: Icon(
+                    isFav ? Icons.favorite : Icons.favorite_border,
+                    color: isFav ? Colors.red : Colors.white38,
+                    size: 22,
+                  ),
+                ),
               ],
             ),
           ),
-
-          // --- PROGRESS BAR (If Playing) ---
           if (_isInitialized)
             VideoProgressIndicator(
               _controller!,
@@ -318,10 +316,7 @@ class _SurahTileState extends State<_SurahTile> {
               ),
               padding: EdgeInsets.zero,
             ),
-
           const Divider(height: 1, color: Colors.white10),
-
-          // --- BOTTOM PART: Detailed Info ---
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -332,56 +327,44 @@ class _SurahTileState extends State<_SurahTile> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Main Surah Name
                       Text(
-                        widget.surah.name, // e.g. "Surah Al-Baqarah"
+                        widget.surah.name,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      // Duration (Simulated or fetched)
                       Text(
-                        _isInitialized
-                            ? _formatDuration(_duration)
-                            : "", // Placeholder until loaded
+                        _isInitialized ? _formatDuration(_duration) : "",
                         style: const TextStyle(
-                          color: Color(0xFFCFB56C),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
+                            color: Color(0xFFCFB56C),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 4),
-                      // Subtitle / Description
                       Text(
                         widget.recitation.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                        ),
+                            color: Colors.white54, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-                // Surah Number Badge
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white10,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(6)),
                   child: Text(
                     "#${widget.surah.id}",
                     style: const TextStyle(
-                      color: Colors.white54,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                        color: Colors.white54,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12),
                   ),
                 ),
               ],

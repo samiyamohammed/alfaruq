@@ -1,22 +1,24 @@
 import 'dart:async';
-import 'package:al_faruk_app/generated/app_localizations.dart'; // 1. Import Localization
+import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/trailer_player_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class FeaturedCarousel extends StatefulWidget {
+class FeaturedCarousel extends ConsumerStatefulWidget {
   final List<FeedItem> items;
   const FeaturedCarousel({super.key, required this.items});
 
   @override
-  State<FeaturedCarousel> createState() => _FeaturedCarouselState();
+  ConsumerState<FeaturedCarousel> createState() => _FeaturedCarouselState();
 }
 
-class _FeaturedCarouselState extends State<FeaturedCarousel> {
+class _FeaturedCarouselState extends ConsumerState<FeaturedCarousel> {
   late PageController _pageController;
   late Timer _timer;
-  int _currentRealIndex = 0;
+  double _currentPage = 0;
 
   @override
   void initState() {
@@ -24,13 +26,23 @@ class _FeaturedCarouselState extends State<FeaturedCarousel> {
     int initialPage = widget.items.length * 1000;
     _pageController =
         PageController(viewportFraction: 1.0, initialPage: initialPage);
-    _currentRealIndex = initialPage % widget.items.length;
+    _currentPage = initialPage.toDouble();
 
-    _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
+    _pageController.addListener(() {
+      setState(() {
+        _currentPage = _pageController.page!;
+      });
+    });
+
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 6), (Timer timer) {
       if (_pageController.hasClients) {
         _pageController.nextPage(
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.fastOutSlowIn,
+          duration: const Duration(milliseconds: 1000),
+          curve: Curves.easeInOutQuart,
         );
       }
     });
@@ -45,84 +57,132 @@ class _FeaturedCarouselState extends State<FeaturedCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    // 2. Initialize Localization
     final l10n = AppLocalizations.of(context)!;
-    final currentItem = widget.items[_currentRealIndex];
+    final currentRealIndex = _currentPage.round() % widget.items.length;
+    final currentItem = widget.items[currentRealIndex];
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
+    final bool isFav = bookmarkedIds.contains(currentItem.id);
 
     return Column(
       children: [
         SizedBox(
-          height: 400,
+          height: 480, // Slightly taller for more visual impact
           child: PageView.builder(
             controller: _pageController,
-            onPageChanged: (int index) {
-              setState(() {
-                _currentRealIndex = index % widget.items.length;
-              });
-            },
             itemBuilder: (context, index) {
               final int actualIndex = index % widget.items.length;
               final item = widget.items[actualIndex];
-              return _buildCarouselItem(item);
+
+              // Calculate scale for zoom effect
+              double scale = 1.0;
+              if (_pageController.position.haveDimensions) {
+                scale = (1 - ((_currentPage - index).abs() * 0.15))
+                    .clamp(0.85, 1.0);
+              }
+
+              return Transform.scale(
+                scale: scale,
+                child: _buildCarouselItem(item),
+              );
             },
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _actionButton(Icons.info_outline, l10n.detail, () {
-                // Localized
+              _actionButton(Icons.info_outline, l10n.detail, Colors.white, () {
                 HomePageStateHelper.showDetailDialog(
                     context, currentItem, l10n);
               }),
-              SizedBox(
-                width: 180,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            ContentPlayerScreen(contentId: currentItem.id),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.play_arrow, color: Colors.black),
-                  label: Text(l10n.watchNow), // Localized
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFCFB56C),
-                    foregroundColor: Colors.black,
-                    elevation: 5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    textStyle: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
+              _buildWatchButton(l10n, currentItem),
+              _actionButton(
+                isFav ? Icons.favorite : Icons.favorite_border,
+                isFav ? "Saved" : l10n.addList,
+                isFav ? const Color(0xFFCFB56C) : Colors.white,
+                () => ref
+                    .read(bookmarksProvider.notifier)
+                    .toggleBookmark(currentItem),
               ),
-              _actionButton(Icons.add, l10n.addList, () {}), // Localized
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            widget.items.length,
-            (index) => Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: _currentRealIndex == index ? 24 : 8,
-              height: 4,
-              decoration: BoxDecoration(
-                color: _currentRealIndex == index
-                    ? const Color(0xFFCFB56C)
-                    : Colors.white24,
-                borderRadius: BorderRadius.circular(4),
+        const SizedBox(height: 24),
+        _buildIndicators(),
+      ],
+    );
+  }
+
+  Widget _buildWatchButton(AppLocalizations l10n, FeedItem item) {
+    return Container(
+      width: 180,
+      height: 52,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFCFB56C).withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ContentPlayerScreen(contentId: item.id),
+            ),
+          );
+        },
+        icon:
+            const Icon(Icons.play_arrow_rounded, color: Colors.black, size: 28),
+        label: Text(
+          l10n.watchNow.toUpperCase(),
+          style:
+              const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFCFB56C),
+          foregroundColor: Colors.black,
+          elevation: 0,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCarouselItem(FeedItem item) {
+    return Stack(
+      children: [
+        // The Base Image
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: NetworkImage(item.thumbnailUrl ?? ''),
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        // Top Gradient (Melts into the status bar/header)
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.8),
+                  Colors.transparent,
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.95),
+                ],
+                stops: const [0.0, 0.25, 0.7, 1.0],
               ),
             ),
           ),
@@ -131,105 +191,41 @@ class _FeaturedCarouselState extends State<FeaturedCarousel> {
     );
   }
 
-  Widget _buildCarouselItem(FeedItem item) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+  Widget _buildIndicators() {
+    final currentRealIndex = _currentPage.round() % widget.items.length;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(
+        widget.items.length,
+        (index) => AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: currentRealIndex == index ? 28 : 8,
+          height: 4,
+          decoration: BoxDecoration(
+            color: currentRealIndex == index
+                ? const Color(0xFFCFB56C)
+                : Colors.white24,
+            borderRadius: BorderRadius.circular(4),
           ),
-        ],
-        image: DecorationImage(
-          image: NetworkImage(item.thumbnailUrl ?? ''),
-          fit: BoxFit.cover,
         ),
-      ),
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(Radius.circular(16)),
-              gradient: LinearGradient(
-                colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0.5, 1.0],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 20,
-            left: 16,
-            right: 16,
-            child: Column(
-              children: [
-                Text(
-                  item.title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (item.price != null && item.price != "0.00") ...[
-                      Text(
-                        "${double.tryParse(item.price!)?.toStringAsFixed(0)} ETB",
-                        style: const TextStyle(
-                          color: Color(0xFFCFB56C),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white30),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text("Amharic",
-                          style:
-                              TextStyle(color: Colors.white70, fontSize: 10)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
+  Widget _actionButton(
+      IconData icon, String label, Color iconColor, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white30),
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          const SizedBox(height: 6),
+          Icon(icon, color: iconColor, size: 28),
+          const SizedBox(height: 8),
           Text(label,
-              style: const TextStyle(fontSize: 10, color: Colors.white70))
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -239,15 +235,10 @@ class _FeaturedCarouselState extends State<FeaturedCarousel> {
 class HomePageStateHelper {
   static String _formatDuration(int? totalSeconds) {
     if (totalSeconds == null) return "Unknown";
-    final duration = Duration(seconds: totalSeconds);
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    if (duration.inHours > 0) {
-      return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
-    } else {
-      return "$twoDigitMinutes:$twoDigitSeconds";
-    }
+    final d = Duration(seconds: totalSeconds);
+    return d.inHours > 0
+        ? "${d.inHours}:${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}"
+        : "${d.inMinutes}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}";
   }
 
   static void showDetailDialog(
@@ -255,76 +246,47 @@ class HomePageStateHelper {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: const Color(0xFF151E32),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.all(20),
+        backgroundColor: const Color(0xFF0A0E17),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: SingleChildScrollView(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(l10n.movieDetails, // Localized
-                    style: const TextStyle(
-                        color: Color(0xFFCFB56C),
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
+              ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+                child: Image.network(item.thumbnailUrl ?? '',
+                    height: 220, fit: BoxFit.cover),
               ),
-              const Divider(height: 1, color: Colors.white24),
-
-              // --- FIX: Added Spacing Here ---
-              const SizedBox(height: 16),
-
-              if (item.thumbnailUrl != null)
-                Container(
-                  height: 200,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                        image: NetworkImage(item.thumbnailUrl!),
-                        fit: BoxFit.contain),
-                  ),
-                ),
               Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item.title,
                         style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 22,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white24),
-                              borderRadius: BorderRadius.circular(4)),
-                          child: Text(item.type,
-                              style: const TextStyle(
-                                  color: Colors.white70, fontSize: 10)),
-                        ),
+                        _tag(item.type),
                         if (item.duration != null) ...[
-                          const SizedBox(width: 12),
-                          const Icon(Icons.access_time,
-                              color: Colors.white54, size: 14),
+                          const SizedBox(width: 15),
+                          const Icon(Icons.timer_outlined,
+                              color: Colors.white54, size: 16),
                           const SizedBox(width: 4),
                           Text(_formatDuration(item.duration),
-                              style: const TextStyle(
-                                  color: Colors.white70, fontSize: 12)),
+                              style: const TextStyle(color: Colors.white70)),
                         ],
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     Text(item.description,
                         style: const TextStyle(
-                            color: Colors.white70, height: 1.5)),
-                    const SizedBox(height: 24),
+                            color: Colors.white70, height: 1.6, fontSize: 14)),
+                    const SizedBox(height: 30),
                     Row(
                       children: [
                         Expanded(
@@ -339,43 +301,20 @@ class HomePageStateHelper {
                             },
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFCFB56C),
-                                foregroundColor: Colors.black,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12)),
-                            child: Text(
-                                (item.price != null && item.price != "0.00")
-                                    ? "${l10n.watchNow} ${double.tryParse(item.price!)?.toStringAsFixed(0)} ETB" // Localized
-                                    : l10n.watchFree, // Localized
+                                foregroundColor: Colors.black),
+                            child: Text(l10n.watchNow,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () {
-                              if (item.trailerUrl != null &&
-                                  item.trailerUrl!.isNotEmpty) {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => TrailerPlayerScreen(
-                                            videoUrl: item.trailerUrl!)));
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text(l10n
-                                            .trailerNotAvailable), // Localized
-                                        backgroundColor: Colors.redAccent));
-                              }
-                            },
+                            onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.white70),
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12)),
-                            child: Text(
-                                l10n.watchTrailer.toUpperCase()), // Localized
+                                side: const BorderSide(color: Colors.white24),
+                                foregroundColor: Colors.white),
+                            child: const Text("CLOSE"),
                           ),
                         ),
                       ],
@@ -387,6 +326,20 @@ class HomePageStateHelper {
           ),
         ),
       ),
+    );
+  }
+
+  static Widget _tag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFCFB56C).withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(4)),
+      child: Text(text.toUpperCase(),
+          style: const TextStyle(
+              color: Color(0xFFCFB56C),
+              fontSize: 10,
+              fontWeight: FontWeight.bold)),
     );
   }
 }

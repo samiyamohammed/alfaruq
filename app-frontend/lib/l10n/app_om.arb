@@ -206,5 +206,10 @@
     "watchNow": "AMMA ILAALI",
     "addList": "Tarree Dabali",
     "movieDetails": "Bal'ina Fiilmii",
-    "watchFree": "BILISAAN ILAALI"
+    "watchFree": "BILISAAN ILAALI",
+
+    "comingSoon": "Dhiyootti",
+    "comingSoonDesc": "Tajaajila kana isiniif dhiyeessuuf jabaannee hojjechaa jirra. Akka dhufeen isin beeksifna!",
+    "notifyMe": "YOO DHUFE NA BEEKSISI",
+    "ok": "TOLE"
 }

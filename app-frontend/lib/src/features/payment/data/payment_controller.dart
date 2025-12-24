@@ -12,14 +12,19 @@ class PaymentController extends StateNotifier<AsyncValue<void>> {
 
   PaymentController(this._ref) : super(const AsyncData(null));
 
-  Future<void> buyContent(String contentId) async {
+  Future<void> buyContent({
+    required String contentId,
+    required int durationDays, // UPDATED
+  }) async {
     state = const AsyncLoading();
     try {
       final repo = _ref.read(paymentRepositoryProvider);
 
       // 1. Get the Chapa URL
-      final String checkoutUrl =
-          await repo.initiatePurchase(contentId: contentId);
+      final String checkoutUrl = await repo.initiatePurchase(
+        contentId: contentId,
+        durationDays: durationDays,
+      );
 
       if (checkoutUrl.isEmpty) {
         throw "Invalid payment URL received";
@@ -28,9 +33,6 @@ class PaymentController extends StateNotifier<AsyncValue<void>> {
       // 2. Launch the URL
       final Uri uri = Uri.parse(checkoutUrl);
 
-      // FIX: We removed the 'await canLaunchUrl(uri)' check because it fails
-      // on Android 11+ without specific manifest changes.
-      // launchUrl will throw or return false if it fails anyway.
       try {
         final bool launched = await launchUrl(
           uri,

@@ -1,25 +1,24 @@
-// lib/src/core/services/settings_service.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'notification_service.dart';
 
 class SettingsService with ChangeNotifier {
   late SharedPreferences _prefs;
+  bool _isInitialized = false;
 
-  // --- UPDATED LANGUAGE SETTINGS ---
-  String _localeCode = 'en'; // Default to English language code
+  // --- LANGUAGE SETTINGS ---
+  String _localeCode = 'en';
   String get localeCode => _localeCode;
 
-  // Provide a map of language codes to their display names
   final Map<String, String> availableLanguages = {
     'en': 'English',
     'am': 'Amharic',
     'om': 'Afaan Oromo',
   };
 
-  // A new getter to return the current Locale object for MaterialApp
   Locale get currentLocale => Locale(_localeCode);
-  // --- END OF UPDATED LANGUAGE SETTINGS ---
 
+  // --- NOTIFICATION SETTINGS ---
   bool _remindersEnabled = true;
   bool _soundEnabled = true;
   String _selectedSound = 'adhan.mp3';
@@ -33,33 +32,35 @@ class SettingsService with ChangeNotifier {
   final Map<String, String> soundOptions = {
     'adhan.mp3': 'Adhan',
     'takbir.mp3': 'Takbir',
-    // 'tone.mp3': 'Tone',
   };
 
   Future<void> loadSettings() async {
     _prefs = await SharedPreferences.getInstance();
+
     _localeCode = _prefs.getString('languageCode') ?? 'en';
     _remindersEnabled = _prefs.getBool('remindersEnabled') ?? true;
     _soundEnabled = _prefs.getBool('soundEnabled') ?? true;
     _vibrationEnabled = _prefs.getBool('vibrationEnabled') ?? true;
 
-    // --- START OF THE FIX ---
     String savedSound = _prefs.getString('selectedSound') ?? 'adhan.mp3';
 
-    // Check if the saved sound is still in our list of options.
-    // If not, fall back to the first available option.
     if (soundOptions.containsKey(savedSound)) {
       _selectedSound = savedSound;
     } else {
-      _selectedSound =
-          soundOptions.keys.first; // Reset to the first valid sound
+      _selectedSound = soundOptions.keys.first;
     }
-    // --- END OF THE FIX ---
 
+    _isInitialized = true;
     notifyListeners();
+
+    // Safety delay to let other init tasks (like NotificationService.init) finish
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _refreshNotifications();
+    });
   }
 
-  // --- UPDATED METHOD TO SET LANGUAGE ---
+  // --- SETTERS ---
+
   void setLanguage(String newLocaleCode) {
     if (availableLanguages.keys.contains(newLocaleCode)) {
       _localeCode = newLocaleCode;
@@ -72,23 +73,33 @@ class SettingsService with ChangeNotifier {
     _remindersEnabled = value;
     _prefs.setBool('remindersEnabled', value);
     notifyListeners();
+    _refreshNotifications();
   }
 
   void setSoundEnabled(bool value) {
     _soundEnabled = value;
     _prefs.setBool('soundEnabled', value);
     notifyListeners();
+    _refreshNotifications();
   }
 
   void setSelectedSound(String soundFile) {
     _selectedSound = soundFile;
     _prefs.setString('selectedSound', soundFile);
     notifyListeners();
+    _refreshNotifications();
   }
 
   void setVibrationEnabled(bool value) {
     _vibrationEnabled = value;
     _prefs.setBool('vibrationEnabled', value);
     notifyListeners();
+    _refreshNotifications();
+  }
+
+  void _refreshNotifications() {
+    if (_isInitialized) {
+      NotificationService.scheduleDailyPrayerNotifications();
+    }
   }
 }

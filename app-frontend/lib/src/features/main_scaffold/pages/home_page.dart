@@ -20,30 +20,23 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-// 1. Add WidgetsBindingObserver to listen to App Lifecycle
 class _HomePageState extends ConsumerState<HomePage>
     with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // 2. Register this class as an observer
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
-    // 3. Remove observer to prevent memory leaks
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // 4. Listen for when the app comes to the foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // The user just came back to the app (e.g., from Chapa or another screen)
-      // We force a refresh of the feed so 'isLocked' updates to false
-      print("🔄 App Resumed: Refreshing Home Feed...");
       ref.invalidate(feedContentProvider);
     }
   }
@@ -55,12 +48,12 @@ class _HomePageState extends ConsumerState<HomePage>
     final newsAsync = ref.watch(newsProvider);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       body: feedAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (allFeedItems) {
-          // --- FILTERING DATA ---
           final movies = allFeedItems.where((i) => i.type == 'MOVIE').toList();
           final series = allFeedItems.where((i) => i.type == 'SERIES').toList();
           final prophets =
@@ -71,7 +64,6 @@ class _HomePageState extends ConsumerState<HomePage>
           final menzumas =
               allFeedItems.where((i) => i.type == 'MUSIC_VIDEO').toList();
           final books = allFeedItems.where((i) => i.type == 'BOOK').toList();
-
           final featuredItems = movies.take(5).toList();
 
           return RefreshIndicator(
@@ -80,25 +72,15 @@ class _HomePageState extends ConsumerState<HomePage>
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                const SizedBox(height: 100),
-
-                // 1. Featured Movies
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Text(
-                    l10n.sectionPopularMovies,
-                    style: const TextStyle(
-                      color: Color(0xFFCFB56C),
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (featuredItems.isNotEmpty)
+                // The Hero Section
+                if (featuredItems.isNotEmpty) ...[
                   FeaturedCarousel(items: featuredItems),
+                  const SizedBox(height: 40),
+                ],
 
-                const SizedBox(height: 24),
+                // 1. Popular Movies Header
+                _sectionHeader(l10n.sectionPopularMovies),
+                const SizedBox(height: 20),
 
                 // 2. Translated Films
                 if (movies.isNotEmpty)
@@ -113,7 +95,7 @@ class _HomePageState extends ConsumerState<HomePage>
                                 title: l10n.translatedMovies, items: movies))),
                   ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
 
                 // 3. Series Films
                 if (series.isNotEmpty)
@@ -128,7 +110,7 @@ class _HomePageState extends ConsumerState<HomePage>
                                 title: l10n.seriesMovies, items: series))),
                   ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
 
                 // 4. Premium Menzumas
                 if (menzumas.isNotEmpty)
@@ -143,24 +125,15 @@ class _HomePageState extends ConsumerState<HomePage>
                                 title: l10n.premiumNesheed, items: menzumas))),
                   ),
 
-                const SizedBox(height: 12),
-
-                // 5. Quran Tafsir
+                const SizedBox(height: 32),
                 TafsirSection(
                   items: const [],
-                  onSeeAll: (selectedLanguageId) {
-                    Navigator.push(
+                  onSeeAll: (selectedLanguageId) => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => TafsirSheikhsScreen(
-                          initialLanguageId: selectedLanguageId,
-                        ),
-                      ),
-                    );
-                  },
+                          builder: (_) => TafsirSheikhsScreen(
+                              initialLanguageId: selectedLanguageId))),
                 ),
-
-                // 6. Prophets History
                 if (prophets.isNotEmpty)
                   HorizontalContentSection(
                     title: l10n.prophetHistory,
@@ -172,30 +145,17 @@ class _HomePageState extends ConsumerState<HomePage>
                             builder: (_) => GenericGridScreen(
                                 title: l10n.prophetHistory, items: prophets))),
                   ),
-
-                // 7. Iqra Section
                 IqraSection(books: books.take(10).toList()),
-
-                // 8. Da'wah
                 if (dawah.isNotEmpty)
                   DawahSection(
-                    items: dawah.take(10).toList(),
-                    onSeeAll: () {
-                      Navigator.push(
+                      items: dawah.take(10).toList(),
+                      onSeeAll: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (_) => GenericGridScreen(
-                                  title: l10n.dawahFree, items: dawah)));
-                    },
-                  ),
-
-                // 9. Our Channels
+                                  title: l10n.dawahFree, items: dawah)))),
                 const ChannelsSection(),
-
-                // 10. Popular on YouTube
                 const YoutubeSection(),
-
-                // 11. Documentaries
                 if (docs.isNotEmpty)
                   HorizontalContentSection(
                     title: l10n.documentaries,
@@ -207,20 +167,48 @@ class _HomePageState extends ConsumerState<HomePage>
                             builder: (_) => GenericGridScreen(
                                 title: l10n.documentaries, items: docs))),
                   ),
-
-                // 12. Alfaruk Kheber
                 newsAsync.when(
-                  data: (newsList) =>
-                      NewsSection(newsList: newsList.take(10).toList()),
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-
+                    data: (newsList) =>
+                        NewsSection(newsList: newsList.take(10).toList()),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink()),
                 const SizedBox(height: 100),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 24,
+            decoration: BoxDecoration(
+              color: const Color(0xFFCFB56C),
+              borderRadius: BorderRadius.circular(2),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFFCFB56C).withOpacity(0.5),
+                    blurRadius: 8)
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: const TextStyle(
+                color: Color(0xFFCFB56C),
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5),
+          ),
+        ],
       ),
     );
   }

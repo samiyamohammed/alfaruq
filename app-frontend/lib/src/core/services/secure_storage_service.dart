@@ -8,32 +8,38 @@ final secureStorageServiceProvider = Provider<SecureStorageService>((ref) {
 class SecureStorageService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   static const String _keyAccessToken = 'accessToken';
+  static const String _keySessionId = 'sessionId'; // New Key
 
-  // --- NEW METHODS (Required for LoginController & AuthInterceptor) ---
-
-  // 1. Save Token
+  // --- ACCESS TOKEN ---
   Future<void> saveAccessToken(String token) async {
     await _storage.write(key: _keyAccessToken, value: token);
   }
 
-  // 2. Get Token
   Future<String?> getAccessToken() async {
     return await _storage.read(key: _keyAccessToken);
   }
 
-  // 3. Clear All (Logout)
+  // --- SESSION ID (NEW) ---
+  Future<void> saveSessionId(int sessionId) async {
+    // Store int as String
+    await _storage.write(key: _keySessionId, value: sessionId.toString());
+  }
+
+  Future<int?> getSessionId() async {
+    final val = await _storage.read(key: _keySessionId);
+    if (val != null) {
+      return int.tryParse(val);
+    }
+    return null;
+  }
+
+  // --- CLEAR ALL ---
   Future<void> clearAll() async {
     await _storage.deleteAll();
   }
 
-  // --- BACKWARD COMPATIBILITY (Keeps your old code working) ---
-
-  // Maps old 'saveToken' to new 'saveAccessToken'
+  // --- BACKWARD COMPATIBILITY ---
   Future<void> saveToken(String token) async => saveAccessToken(token);
-
-  // Maps old 'getToken' to new 'getAccessToken'
   Future<String?> getToken() async => getAccessToken();
-
-  // Maps old 'deleteToken' to new 'clearAll'
   Future<void> deleteToken() async => clearAll();
 }

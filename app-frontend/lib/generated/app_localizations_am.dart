@@ -309,7 +309,7 @@ class AppLocalizationsAm extends AppLocalizations {
   String get connectCreators => 'ከፈጣሪዎች ጋር ይገናኙ';
 
   @override
-  String get comingSoon => 'በቅርብ ቀን';
+  String get comingSoon => 'በቅርቡ ይጠብቁ';
 
   @override
   String get mosqueLocator => 'መስጂድ ፈላጊ';
@@ -551,4 +551,14 @@ class AppLocalizationsAm extends AppLocalizations {
 
   @override
   String get watchFree => 'በነፃ ይመልከቱ';
+
+  @override
+  String get comingSoonDesc =>
+      'ይህንን አገልግሎት ለእርስዎ ለማቅረብ ጠንክረን እየሰራን ነው። ዝግጁ ሲሆን እናሳውቆታለን!';
+
+  @override
+  String get notifyMe => 'ሲመጣ አሳውቀኝ';
+
+  @override
+  String get ok => 'እሺ';
 }

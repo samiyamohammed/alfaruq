@@ -14,7 +14,7 @@ class PaymentRepository {
 
   Future<String> initiatePurchase({
     required String contentId,
-    int durationDays = 10, // Default based on your Curl
+    required int durationDays, // UPDATED
   }) async {
     try {
       final response = await _dio.post(

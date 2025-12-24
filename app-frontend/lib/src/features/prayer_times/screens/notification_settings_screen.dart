@@ -1,7 +1,7 @@
-import 'package:al_faruk_app/generated/app_localizations.dart'; // 1. Import Localization
+import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/services/service_providers.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart'; // 2. Import CustomAppBar
-import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart'; // 3. Import CustomDrawer
+import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +16,6 @@ class NotificationSettingsScreen extends ConsumerStatefulWidget {
 
 class _NotificationSettingsScreenState
     extends ConsumerState<NotificationSettingsScreen> {
-  // 4. Create Key for Drawer
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
@@ -32,37 +31,30 @@ class _NotificationSettingsScreenState
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      key: _scaffoldKey, // Assign Key
-      backgroundColor: const Color(0xFF0B101D), // Dark Background
-
-      // 5. Add Drawer
+      key: _scaffoldKey,
+      backgroundColor: const Color(0xFF0B101D),
       endDrawer: const CustomDrawer(),
-
-      // 6. Use CustomAppBar
       appBar: CustomAppBar(
         isSubPage: true,
-        title: l10n.notificationSettings, // Localized Title
+        title: l10n.notificationSettings,
         scaffoldKey: _scaffoldKey,
         onLeadingPressed: () => Navigator.pop(context),
       ),
-
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Section Container
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF151E32), // Lighter Blue container
+              color: const Color(0xFF151E32),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
               children: [
-                // Enable All Switch
                 SwitchListTile(
-                  activeColor: const Color(0xFFCFB56C), // Gold
+                  activeColor: const Color(0xFFCFB56C),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   title: Text(
-                    l10n.enableAllReminders, // Localized
+                    l10n.enableAllReminders,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -73,17 +65,14 @@ class _NotificationSettingsScreenState
                       .read(settingsServiceProvider.notifier)
                       .setRemindersEnabled(value),
                 ),
-
                 if (settings.remindersEnabled) ...[
                   const Divider(height: 1, color: Colors.white10),
-
-                  // Section Header
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        l10n.notificationBehavior, // Localized
+                        l10n.notificationBehavior,
                         style: const TextStyle(
                           color: Color(0xFFCFB56C),
                           fontWeight: FontWeight.bold,
@@ -92,13 +81,11 @@ class _NotificationSettingsScreenState
                       ),
                     ),
                   ),
-
-                  // Sound Switch
                   SwitchListTile(
                     activeColor: const Color(0xFFCFB56C),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     title: Text(
-                      l10n.reminderSound, // Localized
+                      l10n.reminderSound,
                       style: const TextStyle(color: Colors.white),
                     ),
                     value: settings.soundEnabled,
@@ -106,8 +93,6 @@ class _NotificationSettingsScreenState
                         .read(settingsServiceProvider.notifier)
                         .setSoundEnabled(value),
                   ),
-
-                  // Sound Selector Dropdown
                   if (settings.soundEnabled)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -116,7 +101,7 @@ class _NotificationSettingsScreenState
                         dropdownColor: const Color(0xFF151E32),
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          labelText: l10n.soundLabel, // Localized
+                          labelText: l10n.soundLabel,
                           labelStyle: const TextStyle(color: Colors.grey),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -140,18 +125,17 @@ class _NotificationSettingsScreenState
                             ref
                                 .read(settingsServiceProvider.notifier)
                                 .setSelectedSound(newValue);
+                            // Preview play in app
                             _audioPlayer.play(AssetSource('audio/$newValue'));
                           }
                         },
                       ),
                     ),
-
-                  // Vibration Switch
                   SwitchListTile(
                     activeColor: const Color(0xFFCFB56C),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     title: Text(
-                      l10n.vibration, // Localized
+                      l10n.vibration,
                       style: const TextStyle(color: Colors.white),
                     ),
                     value: settings.vibrationEnabled,

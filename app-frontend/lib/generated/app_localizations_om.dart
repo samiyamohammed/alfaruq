@@ -309,7 +309,7 @@ class AppLocalizationsOm extends AppLocalizations {
   String get connectCreators => 'Oomishtoota wajjin wal-qunnamaa';
 
   @override
-  String get comingSoon => 'Dhihootti Eegaa';
+  String get comingSoon => 'Dhiyootti';
 
   @override
   String get mosqueLocator => 'Masjiida Barbaadi';
@@ -552,4 +552,14 @@ class AppLocalizationsOm extends AppLocalizations {
 
   @override
   String get watchFree => 'BILISAAN ILAALI';
+
+  @override
+  String get comingSoonDesc =>
+      'Tajaajila kana isiniif dhiyeessuuf jabaannee hojjechaa jirra. Akka dhufeen isin beeksifna!';
+
+  @override
+  String get notifyMe => 'YOO DHUFE NA BEEKSISI';
+
+  @override
+  String get ok => 'TOLE';
 }
