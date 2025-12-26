@@ -72,9 +72,12 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
     );
   }
 
+// ... inside your screen class ...
+
   Future<void> _handleLogout() async {
     final l10n = AppLocalizations.of(context)!;
 
+    // 1. Show Confirmation
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -102,7 +105,9 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
       },
     );
 
+    // 2. Perform Logout
     if (shouldLogout == true && mounted) {
+      // Show Non-Dismissible Loading Spinner
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -110,8 +115,20 @@ class _AppSettingsScreenState extends ConsumerState<AppSettingsScreen> {
             child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
       );
 
-      // Safe Logout Call
-      await ref.read(loginControllerProvider.notifier).logout(context);
+      try {
+        // Safe Logout Call (Controller now handles popping the spinner)
+        await ref.read(loginControllerProvider.notifier).logout(context);
+      } catch (e) {
+        // In case of error, make sure we pop the spinner so user isn't stuck
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text("Logout failed: $e"),
+                backgroundColor: Colors.red),
+          );
+        }
+      }
     }
   }
 

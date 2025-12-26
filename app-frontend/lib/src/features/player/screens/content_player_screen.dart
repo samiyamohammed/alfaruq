@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
-import 'package:al_faruk_app/src/features/common/screens/guest_restricted_screen.dart';
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Added for guest check
+import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart'; // Added for the popup
 import 'package:al_faruk_app/src/features/history/data/history_repository.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart';
 import 'package:al_faruk_app/src/features/payment/data/payment_controller.dart';
@@ -13,7 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:screen_protector/screen_protector.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class ContentPlayerScreen extends ConsumerStatefulWidget {
   final String contentId;
@@ -104,7 +105,7 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     _historyTimer?.cancel();
     _videoController?.dispose();
     _chewieController?.dispose();
-    _ytController?.close();
+    _ytController?.dispose();
     _videoController = null;
     _chewieController = null;
     _ytController = null;
@@ -118,17 +119,29 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
           _videoController != null &&
           _videoController!.value.isPlaying) {
         _saveProgress();
+      } else if (_isYouTubeMode &&
+          _ytController != null &&
+          _ytController!.value.isPlaying) {
+        _saveProgress();
       }
     });
   }
 
   Future<void> _saveProgress() async {
-    if (_isYouTubeMode) return;
-    if (_videoController == null ||
-        !_videoController!.value.isInitialized ||
-        _currentItemForHistory == null) return;
-    final position = _videoController!.value.position.inSeconds;
-    final duration = _videoController!.value.duration.inSeconds;
+    if (_currentItemForHistory == null) return;
+
+    int position = 0;
+    int duration = 0;
+
+    if (_isYouTubeMode && _ytController != null) {
+      position = _ytController!.value.position.inSeconds;
+      duration = _ytController!.metadata.duration.inSeconds;
+    } else if (_videoController != null &&
+        _videoController!.value.isInitialized) {
+      position = _videoController!.value.position.inSeconds;
+      duration = _videoController!.value.duration.inSeconds;
+    }
+
     if (position > 5) {
       await ref.read(historyRepositoryProvider).saveProgress(
             item: _currentItemForHistory!,
@@ -140,14 +153,15 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     }
   }
 
-  // --- INITIALIZE NATIVE PLAYER ---
+  // --- INITIALIZE NATIVE PLAYER (MP4/HLS) ---
   Future<void> _initializePlayer(String videoUrl, FeedItem item) async {
     _disposePlayer();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _isPlayerInitialized = false;
         _isYouTubeMode = false;
       });
+    }
     try {
       _videoController = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
       await _videoController!.initialize();
@@ -188,54 +202,49 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     }
   }
 
-  // --- INITIALIZE YOUTUBE PLAYER (FIXED FOR ERROR 152) ---
+  // --- INITIALIZE YOUTUBE PLAYER (NATIVE FIX FOR ERROR 152) ---
   Future<void> _initializeYoutubePlayer(
       String youtubeUrl, FeedItem item) async {
     _disposePlayer();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _isPlayerInitialized = false;
         _isYouTubeMode = true;
       });
+    }
 
     try {
-      // Improved manual parsing for robust ID extraction
-      final videoId = _extractYoutubeId(youtubeUrl);
+      final videoId = YoutubePlayer.convertUrlToId(youtubeUrl);
       if (videoId == null) throw "Invalid YouTube URL";
 
-      _ytController = YoutubePlayerController.fromVideoId(
-        videoId: videoId,
-        autoPlay: true,
-        params: const YoutubePlayerParams(
-          showFullscreenButton: true,
+      _ytController = YoutubePlayerController(
+        initialVideoId: videoId,
+        flags: const YoutubePlayerFlags(
+          autoPlay: true,
           mute: false,
-          showControls: true,
-          playsInline: true,
-          // CRITICAL FIX FOR ERROR 152:
-          origin: 'https://www.youtube.com',
+          disableDragSeek: false,
+          loop: false,
+          isLive: false,
+          forceHD: false,
           enableCaption: true,
         ),
       );
 
       _startHistoryTracking(item);
+
+      // Handle completion for playlists
+      _ytController!.addListener(() {
+        if (_isSeries &&
+            _ytController!.value.playerState == PlayerState.ended) {
+          _playNextEpisode();
+        }
+      });
+
       if (mounted) setState(() => _isPlayerInitialized = true);
     } catch (e) {
       debugPrint("YouTube Init Error: $e");
       if (mounted) setState(() => _isPlayerInitialized = false);
     }
-  }
-
-  // Helper Regex for ID extraction
-  String? _extractYoutubeId(String url) {
-    final regExp = RegExp(
-      r'^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*',
-      caseSensitive: false,
-      multiLine: false,
-    );
-    final match = regExp.firstMatch(url);
-    return (match != null && match.group(7)!.length == 11)
-        ? match.group(7)
-        : null;
   }
 
   void _playNextEpisode() async {
@@ -437,7 +446,15 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                   _buildMissingVideoUI()
                 else if (_isPlayerInitialized)
                   _isYouTubeMode
-                      ? YoutubePlayer(controller: _ytController!)
+                      ? YoutubePlayer(
+                          controller: _ytController!,
+                          showVideoProgressIndicator: true,
+                          progressIndicatorColor: const Color(0xFFCFB56C),
+                          progressColors: const ProgressBarColors(
+                            playedColor: Color(0xFFCFB56C),
+                            handleColor: Colors.white,
+                          ),
+                        )
                       : (_chewieController != null
                           ? Chewie(controller: _chewieController!)
                           : const CircularProgressIndicator(
@@ -506,8 +523,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                 const Divider(color: Colors.white12, height: 32),
               ],
               if (displayRelated.isNotEmpty) ...[
-                Text("Related Content",
-                    style: const TextStyle(
+                const Text("Related Content",
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold)),
@@ -708,6 +725,13 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
         const SizedBox(height: 12),
         ElevatedButton(
           onPressed: () async {
+            // --- GUEST RESTRICTION LOGIC ---
+            final authState = ref.read(authControllerProvider);
+            if (authState == AuthState.guest) {
+              GuestPrompt.show(context, ref);
+              return;
+            }
+
             if (content.pricingTier == null) return;
             final result = await showModalBottomSheet(
                 context: context,

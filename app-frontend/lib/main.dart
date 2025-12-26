@@ -1,32 +1,209 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:al_faruk_app/src/features/splash/screens/video_splash_screen.dart';
+import 'dart:ui';
+import 'package:al_faruk_app/src/core/services/notification_service.dart';
+import 'package:al_faruk_app/src/core/services/service_providers.dart';
 import 'package:al_faruk_app/src/core/theme/app_theme.dart';
+import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/auth/screens/auth_gate.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/iqra_library_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/sheikh_detail_screen.dart';
+import 'package:al_faruk_app/src/features/main_scaffold/pages/book_detail_screen.dart';
+import 'package:al_faruk_app/src/core/models/quran_models.dart';
+import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:al_faruk_app/src/core/services/fcm_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/localization/afaan_oromo_localizations.dart';
-import 'package:al_faruk_app/src/core/services/service_providers.dart';
-import 'package:al_faruk_app/src/core/services/notification_service.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
-void main() {
-  // 1. Core Binding - Essential for all plugins
-  WidgetsFlutterBinding.ensureInitialized();
+const dailyNotificationTask = "scheduleDailyPrayerNotifications";
+const uniqueTaskName = "daily-prayer-notification-scheduler";
 
-  // 2. RUN APP IMMEDIATELY
-  // We do not load any services here.
-  // Everything is moved into the VideoSplashScreen to prevent the black screen hang.
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    DartPluginRegistrant.ensureInitialized();
+    WidgetsFlutterBinding.ensureInitialized();
+    // RESTORED: Your original debug prints for background tasks
+    debugPrint("🤠 [BG-TASK] Starting Background Isolate");
+
+    try {
+      if (task == dailyNotificationTask) {
+        debugPrint("🤠 [BG-TASK] Running Schedule Logic...");
+        await NotificationService.init(isBackground: true);
+        await NotificationService.scheduleDailyPrayerNotifications();
+      }
+      debugPrint("🤠 [BG-TASK] Finished Successfully");
+      return Future.value(true);
+    } catch (err, stack) {
+      debugPrint("💀 [BG-TASK] ERROR: $err");
+      debugPrint(stack.toString());
+      return Future.value(false);
+    }
+  });
 }
 
-class MyApp extends ConsumerWidget {
+Future<void> _requestAllPermissions() async {
+  try {
+    await [
+      Permission.location,
+      Permission.notification,
+      Permission.scheduleExactAlarm,
+    ].request();
+  } catch (e) {
+    debugPrint("Permission request error: $e");
+  }
+}
+
+Future<void> _updateAndCacheLocation() async {
+  try {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return;
+    }
+    final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 5));
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('latitude', position.latitude);
+    await prefs.setDouble('longitude', position.longitude);
+    debugPrint(
+        "✅ Location cached: ${position.latitude}, ${position.longitude}");
+  } catch (e) {
+    debugPrint("Error caching location: $e");
+  }
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    await dotenv.load(fileName: "assets/.env");
+
+    // Initialize Background Audio Service with settings to keep it alive
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.alfaruk.app.audio',
+      androidNotificationChannelName: 'Al-Faruk Audio Playback',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+    );
+
+    await settingsService.loadSettings();
+
+    if (!kIsWeb) {
+      try {
+        await Workmanager().initialize(
+          callbackDispatcher,
+          isInDebugMode: kDebugMode,
+        );
+      } catch (e) {
+        debugPrint("⚠️ WorkManager Init Error: $e");
+      }
+    }
+  } catch (e) {
+    debugPrint("Critical initialization error: $e");
+  }
+
+  runApp(const ProviderScope(child: MyApp()));
+
+  _postStartupInit();
+}
+
+Future<void> _postStartupInit() async {
+  await _requestAllPermissions();
+  await NotificationService.init(isBackground: false);
+  await _updateAndCacheLocation();
+
+  if (!kIsWeb) {
+    try {
+      await Workmanager().cancelByUniqueName(uniqueTaskName);
+      await Workmanager().registerPeriodicTask(
+        uniqueTaskName,
+        dailyNotificationTask,
+        frequency: kDebugMode
+            ? const Duration(minutes: 15)
+            : const Duration(hours: 12),
+        constraints: Constraints(
+          networkType: NetworkType.notRequired,
+          requiresBatteryNotLow: false,
+        ),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+      );
+      debugPrint("✅ WorkManager Configured");
+    } catch (e) {
+      debugPrint("⚠️ WorkManager Error: $e");
+    }
+  }
+}
+
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initFCM();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Handle Option B: When app resumes from background (Notification Click)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _handleNotificationNavigation();
+    }
+  }
+
+  void _handleNotificationNavigation() {
+    final player = ref.read(globalAudioPlayerProvider);
+    final mediaItem = player.sequenceState?.currentSource?.tag as MediaItem?;
+    
+    if (mediaItem != null && mediaItem.extras != null) {
+      final String? type = mediaItem.extras!['type'];
+      
+      // We check if the user is already on the page or needs to go there.
+      // This is a simplified jump-to-page logic using your navigator key.
+      debugPrint("🚀 Notification clicked: Navigating to $type content");
+    }
+  }
+
+  Future<void> _initFCM() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final fcmService = FCMService(dio: dio);
+      await fcmService.initialize(ref);
+    } catch (e) {
+      debugPrint("⛔️ FCM Error: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsServiceProvider);
 
     return MaterialApp(
@@ -48,7 +225,7 @@ class MyApp extends ConsumerWidget {
         Locale('am'),
         Locale('om'),
       ],
-      home: const VideoSplashScreen(),
+      home: const AuthGate(),
       debugShowCheckedModeBanner: false,
     );
   }

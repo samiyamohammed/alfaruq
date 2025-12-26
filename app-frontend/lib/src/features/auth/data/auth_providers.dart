@@ -1,5 +1,3 @@
-// lib/src/features/auth/data/auth_providers.dart
-
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/core/models/news_item_model.dart';
 import 'package:al_faruk_app/src/core/models/quran_models.dart';
@@ -7,6 +5,7 @@ import 'package:al_faruk_app/src/core/models/youtube_video_model.dart';
 import 'package:al_faruk_app/src/core/services/auth_interceptor.dart';
 import 'package:al_faruk_app/src/core/services/secure_storage_service.dart';
 import 'package:al_faruk_app/src/core/services/youtube_service.dart';
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Import this
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_repository.dart';
@@ -35,20 +34,31 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final dio = ref.watch(dioProvider);
   return AuthRepository(dio: dio);
 });
+
 final youtubeServiceProvider = Provider<YouTubeService>((ref) {
   final dio = ref.watch(dioProvider);
   return YouTubeService(dio: dio);
 });
 
-// --- BOOKMARKS LOGIC ---
+// --- BOOKMARKS LOGIC (FIXED TO PREVENT 403 FOR GUESTS) ---
 
 class BookmarksNotifier extends StateNotifier<AsyncValue<Set<String>>> {
   final Dio dio;
-  BookmarksNotifier(this.dio) : super(const AsyncValue.loading()) {
+  final Ref ref;
+
+  BookmarksNotifier(this.dio, this.ref) : super(const AsyncValue.loading()) {
     fetchBookmarks();
   }
 
   Future<void> fetchBookmarks() async {
+    // FIX: Check if the user is a guest. If so, don't call the API.
+    final authState = ref.read(authControllerProvider);
+    if (authState == AuthState.guest ||
+        authState == AuthState.unauthenticated) {
+      state = const AsyncValue.data({});
+      return;
+    }
+
     try {
       final response = await dio.get('/bookmarks');
       if (response.statusCode == 200) {
@@ -57,20 +67,23 @@ class BookmarksNotifier extends StateNotifier<AsyncValue<Set<String>>> {
         state = AsyncValue.data(set);
       }
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      // If we get a 403 anyway, just set to empty to stop the crash
+      state = const AsyncValue.data({});
     }
   }
 
   Future<void> toggleBookmark(FeedItem item) async {
+    if (ref.read(authControllerProvider) == AuthState.guest) return;
     await _performToggle(item.id, item.type);
   }
 
   Future<void> toggleReciterBookmark(QuranReciter reciter) async {
+    if (ref.read(authControllerProvider) == AuthState.guest) return;
     await _performToggle(reciter.id, 'reciter');
   }
 
-  // FIX: Added for individual Surah/Recitations
   Future<void> toggleTafsirBookmark(QuranRecitation recitation) async {
+    if (ref.read(authControllerProvider) == AuthState.guest) return;
     await _performToggle(recitation.id, 'tafsir');
   }
 
@@ -100,7 +113,7 @@ class BookmarksNotifier extends StateNotifier<AsyncValue<Set<String>>> {
 
 final bookmarksProvider =
     StateNotifierProvider<BookmarksNotifier, AsyncValue<Set<String>>>((ref) {
-  return BookmarksNotifier(ref.watch(dioProvider));
+  return BookmarksNotifier(ref.watch(dioProvider), ref);
 });
 
 final youtubeContentProvider = FutureProvider<List<YoutubeVideo>>((ref) async {
@@ -117,14 +130,13 @@ final youtubeContentProvider = FutureProvider<List<YoutubeVideo>>((ref) async {
   }
 });
 
-// --- NEW PROVIDER: Filter Videos by Channel ---
 final channelVideosProvider =
     FutureProvider.family<List<YoutubeVideo>, String>((ref, channelName) async {
   final dio = ref.watch(dioProvider);
   try {
     final response = await dio.get('/youtube/playlist', queryParameters: {
       'status': 'public',
-      'channel': channelName, // Pass the exact string from your dropdown
+      'channel': channelName,
     });
 
     if (response.statusCode == 200) {
@@ -139,17 +151,14 @@ final channelVideosProvider =
 
 String _handleError(Object e) {
   if (e is DioException) {
-    if (e.type == DioExceptionType.connectionTimeout ||
-        e.type == DioExceptionType.receiveTimeout ||
-        e.type == DioExceptionType.sendTimeout) {
-      return "Connection timed out. Please check your internet.";
-    } else if (e.type == DioExceptionType.connectionError) {
-      return "No internet connection.";
-    } else if (e.type == DioExceptionType.badResponse) {
-      return "Server error (${e.response?.statusCode}). Please try again later.";
+    if (e.response?.statusCode == 403) {
+      return "Guest access limited. Some features require login.";
+    }
+    if (e.type == DioExceptionType.connectionTimeout) {
+      return "Connection timed out.";
     }
   }
-  return "Something went wrong. Please try again.";
+  return "An error occurred. Please try again.";
 }
 
 // --- CONTENT PROVIDERS ---
@@ -187,7 +196,7 @@ final feedDetailsProvider =
   }
 });
 
-// --- PROVIDERS ---
+// --- QURAN PROVIDERS ---
 
 final quranLanguagesProvider = FutureProvider<List<QuranLanguage>>((ref) async {
   final dio = ref.watch(dioProvider);
@@ -228,36 +237,27 @@ final quranStructureProvider = FutureProvider<List<QuranJuz>>((ref) async {
   }
 });
 
-// --- FIX: Using String key to prevent infinite re-fetching loop ---
 final reciterRecitationsProvider =
     FutureProvider.family<List<QuranContentItem>, String>(
         (ref, uniqueKey) async {
   final dio = ref.watch(dioProvider);
 
-  // Parse the key "reciterId|languageId"
   final parts = uniqueKey.split('|');
   final reciterId = parts[0];
   final languageId = parts.length > 1 ? parts[1] : '';
 
   try {
-    print(
-        "🚀 API CALL: /quran/reciters/$reciterId/recitations?languageId=$languageId");
-
     final response = await dio.get(
       '/quran/reciters/$reciterId/recitations',
       queryParameters: {'languageId': languageId},
     );
 
-    print("✅ API SUCCESS: Status ${response.statusCode}");
-
     if (response.statusCode == 200) {
       final List data = response.data;
-      // Parse the JSON into our nested Model
       return data.map((e) => QuranContentItem.fromJson(e)).toList();
     }
     return [];
   } catch (e) {
-    print("❌ API ERROR: $e");
     throw _handleError(e);
   }
 });

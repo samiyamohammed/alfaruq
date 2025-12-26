@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Added
+import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart'; // Added
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -145,14 +147,21 @@ class _DawahSectionState extends ConsumerState<DawahSection> {
                           ),
                         ),
                       ),
-                      // FAVORITE ICON
                       Positioned(
                         top: 12,
                         left: 12,
                         child: GestureDetector(
-                          onTap: () => ref
-                              .read(bookmarksProvider.notifier)
-                              .toggleBookmark(item),
+                          onTap: () {
+                            // CHECK AUTH STATUS
+                            final authState = ref.read(authControllerProvider);
+                            if (authState == AuthState.guest) {
+                              GuestPrompt.show(context, ref);
+                              return;
+                            }
+                            ref
+                                .read(bookmarksProvider.notifier)
+                                .toggleBookmark(item);
+                          },
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: const BoxDecoration(

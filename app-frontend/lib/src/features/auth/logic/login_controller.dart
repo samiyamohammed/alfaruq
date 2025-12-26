@@ -1,8 +1,10 @@
 import 'package:al_faruk_app/src/core/services/secure_storage_service.dart';
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart';
 import 'package:al_faruk_app/src/features/auth/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/auth_providers.dart';
 import '../data/auth_repository.dart';
 
@@ -23,73 +25,30 @@ class LoginController extends Notifier<AsyncValue<void>> {
     return const AsyncData(null);
   }
 
-  // --- 1. EMAIL/PASSWORD LOGIN ---
-  Future<void> loginUser({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> loginUser(
+      {required String email, required String password}) async {
     state = const AsyncLoading();
     final authRepository = ref.read(authRepositoryProvider);
     final storageService = ref.read(secureStorageServiceProvider);
 
     state = await AsyncValue.guard(() async {
-      // 1. Call API
-      final loginResponse = await authRepository.login(
-        email: email,
-        password: password,
-      );
+      final loginResponse =
+          await authRepository.login(email: email, password: password);
 
-      // 2. Save Token
+      // ✅ FIX 1: Save both Token AND Session ID
       await storageService.saveAccessToken(loginResponse.accessToken);
-
-      // 3. Save Session ID (NEW)
       if (loginResponse.sessionId != null) {
-        await storageService.saveSessionId(loginResponse.sessionId!);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('session_id', loginResponse.sessionId!);
       }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_guest_mode', false);
+
+      ref.read(authControllerProvider.notifier).refreshStatus();
     });
   }
 
-  // --- 2. GOOGLE LOGIN ---
-  Future<void> signInWithGoogle() async {
-    state = const AsyncLoading();
-    final authRepository = ref.read(authRepositoryProvider);
-    final storageService = ref.read(secureStorageServiceProvider);
-
-    try {
-      await _googleSignIn.signOut(); // Force account picker
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
-      if (googleUser == null) {
-        state = const AsyncData(null);
-        return;
-      }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final String? idToken = googleAuth.idToken;
-
-      if (idToken == null)
-        throw Exception("Failed to retrieve Google ID Token");
-
-      // API Call
-      final loginResponse = await authRepository.loginWithGoogle(idToken);
-
-      // Save Token
-      await storageService.saveAccessToken(loginResponse.accessToken);
-
-      // Save Session ID (NEW)
-      if (loginResponse.sessionId != null) {
-        await storageService.saveSessionId(loginResponse.sessionId!);
-      }
-
-      state = const AsyncData(null);
-    } catch (e, stack) {
-      _googleSignIn.signOut();
-      state = AsyncValue.error(e, stack);
-    }
-  }
-
-  // --- 3. GUEST LOGIN ---
   Future<void> loginAsGuest() async {
     state = const AsyncLoading();
     final authRepository = ref.read(authRepositoryProvider);
@@ -98,53 +57,76 @@ class LoginController extends Notifier<AsyncValue<void>> {
     state = await AsyncValue.guard(() async {
       final String guestToken = await authRepository.getGuestToken();
       await storageService.saveAccessToken(guestToken);
-      // Guest usually doesn't have a sessionId to store, or logic differs
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_guest_mode', true);
+      await prefs.remove('session_id'); // Guests don't have sessions
+
+      ref.read(authControllerProvider.notifier).refreshStatus();
     });
   }
 
-  // --- 4. LOGOUT (UPDATED) ---
+  Future<void> signInWithGoogle() async {
+    state = const AsyncLoading();
+    final authRepository = ref.read(authRepositoryProvider);
+    final storageService = ref.read(secureStorageServiceProvider);
+
+    try {
+      await _googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        state = const AsyncData(null);
+        return;
+      }
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final loginResponse =
+          await authRepository.loginWithGoogle(googleAuth.idToken!);
+
+      // ✅ FIX 2: Save Session ID for Google Users
+      await storageService.saveAccessToken(loginResponse.accessToken);
+      if (loginResponse.sessionId != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('session_id', loginResponse.sessionId!);
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_guest_mode', false);
+
+      ref.read(authControllerProvider.notifier).refreshStatus();
+      state = const AsyncData(null);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
+
   Future<void> logout(BuildContext context) async {
     final storageService = ref.read(secureStorageServiceProvider);
     final authRepository = ref.read(authRepositoryProvider);
+    final prefs = await SharedPreferences.getInstance();
 
-    try {
-      // 1. Get Session ID from storage
-      final int? sessionId = await storageService.getSessionId();
-
-      // 2. Call Server Logout API if session exists
-      if (sessionId != null) {
-        print("Logging out session: $sessionId");
-        await authRepository.logout(sessionId);
-      }
-
-      // 3. Sign out from Google (Local)
-      await _googleSignIn.signOut();
-
-      // 4. Delete Local Data (Tokens & IDs)
-      await storageService.clearAll();
-
-      // 5. Navigate IMMEDIATELY
-      if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-
-      // 6. Reset Controller State
-      Future.delayed(const Duration(milliseconds: 200), () {
-        ref.invalidateSelf();
-      });
-    } catch (e) {
-      debugPrint("Logout Error: $e");
-      // Fallback: Force local logout even if server/google fails
-      await storageService.clearAll();
-      if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
+    // ✅ FIX 3: Get Session ID and terminate on server
+    final int? sessionId = prefs.getInt('session_id');
+    if (sessionId != null) {
+      print("🔹 Terminating Session ID: $sessionId on server...");
+      await authRepository.logout(sessionId);
     }
+
+    // Local Cleanup
+    await _googleSignIn.signOut();
+    await storageService.clearAll();
+    await prefs.remove('is_guest_mode');
+    await prefs.remove('session_id');
+
+    // ✅ FIX 4: Dismiss the loading dialog before navigating
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop(); // Pops the spinner
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+    ref.invalidateSelf();
   }
 }

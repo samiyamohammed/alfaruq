@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Added
+import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart'; // Added
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/trailer_player_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:flutter/material.dart';
@@ -66,14 +68,13 @@ class _FeaturedCarouselState extends ConsumerState<FeaturedCarousel> {
     return Column(
       children: [
         SizedBox(
-          height: 480, // Slightly taller for more visual impact
+          height: 480,
           child: PageView.builder(
             controller: _pageController,
             itemBuilder: (context, index) {
               final int actualIndex = index % widget.items.length;
               final item = widget.items[actualIndex];
 
-              // Calculate scale for zoom effect
               double scale = 1.0;
               if (_pageController.position.haveDimensions) {
                 scale = (1 - ((_currentPage - index).abs() * 0.15))
@@ -102,9 +103,17 @@ class _FeaturedCarouselState extends ConsumerState<FeaturedCarousel> {
                 isFav ? Icons.favorite : Icons.favorite_border,
                 isFav ? "Saved" : l10n.addList,
                 isFav ? const Color(0xFFCFB56C) : Colors.white,
-                () => ref
-                    .read(bookmarksProvider.notifier)
-                    .toggleBookmark(currentItem),
+                () {
+                  // CHECK AUTH STATUS
+                  final authState = ref.read(authControllerProvider);
+                  if (authState == AuthState.guest) {
+                    GuestPrompt.show(context, ref);
+                    return;
+                  }
+                  ref
+                      .read(bookmarksProvider.notifier)
+                      .toggleBookmark(currentItem);
+                },
               ),
             ],
           ),
@@ -159,7 +168,6 @@ class _FeaturedCarouselState extends ConsumerState<FeaturedCarousel> {
   Widget _buildCarouselItem(FeedItem item) {
     return Stack(
       children: [
-        // The Base Image
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -169,7 +177,6 @@ class _FeaturedCarouselState extends ConsumerState<FeaturedCarousel> {
             ),
           ),
         ),
-        // Top Gradient (Melts into the status bar/header)
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(

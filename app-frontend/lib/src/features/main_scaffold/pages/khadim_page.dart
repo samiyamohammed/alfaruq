@@ -1,5 +1,5 @@
 import 'package:adhan/adhan.dart';
-import 'package:al_faruk_app/generated/app_localizations.dart'; // 1. Import Localization
+import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/qiblah_compass_view.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
@@ -18,8 +18,6 @@ class KhadimPage extends ConsumerStatefulWidget {
 
 class _KhadimPageState extends ConsumerState<KhadimPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  int _selectedTab = 1; // 0 = Mosque, 1 = Qibla
   late Future<PrayerTimes?> _prayerTimesFuture;
 
   @override
@@ -48,7 +46,6 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 2. Initialize Localization
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
@@ -57,7 +54,7 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
       endDrawer: const CustomDrawer(),
       appBar: CustomAppBar(
         isSubPage: true,
-        title: l10n.khadim, // Localized Title
+        title: l10n.khadim,
         scaffoldKey: _scaffoldKey,
         onLeadingPressed: () {
           ref.read(bottomNavIndexProvider.notifier).state = 0;
@@ -65,75 +62,21 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
       ),
       body: Column(
         children: [
-          // 1. Toggle Buttons
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildToggleButton(l10n.mosqueLocator,
-                      Icons.location_on_outlined, 0), // Localized
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildToggleButton(
-                      l10n.qiblaFinder, Icons.explore_outlined, 1), // Localized
-                ),
-              ],
-            ),
-          ),
-
-          // 2. Prayer Times Card
+          // 1. Prayer Times Card (Essential Info at the top)
           _buildPrayerTimesCard(l10n),
 
-          // 3. Main Content
-          Expanded(
-            child: _selectedTab == 0
-                ? const _MosqueLocatorPlaceholder()
-                : const QiblahCompassView(),
+          // 2. Main Content: Qibla Finder (Now the primary feature)
+          const Expanded(
+            child: QiblahCompassView(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildToggleButton(String label, IconData icon, int index) {
-    final bool isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFCFB56C) : const Color(0xFF151E32),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.grey,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.black : Colors.grey,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildPrayerTimesCard(AppLocalizations l10n) {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF151E32),
@@ -148,7 +91,7 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
               const Icon(Icons.mosque, color: Color(0xFFCFB56C), size: 18),
               const SizedBox(width: 8),
               Text(
-                l10n.todaysPrayerTimes, // Localized
+                l10n.todaysPrayerTimes,
                 style: const TextStyle(
                     color: Color(0xFFCFB56C), fontWeight: FontWeight.bold),
               ),
@@ -158,10 +101,20 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
           FutureBuilder<PrayerTimes?>(
             future: _prayerTimesFuture,
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.all(20.0),
                   child: CircularProgressIndicator(color: Color(0xFFCFB56C)),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data == null) {
+                return Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    "Enable location to see prayer times",
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
                 );
               }
 
@@ -173,7 +126,6 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
                 children: [
                   Row(
                     children: [
-                      // Localized Prayer Names
                       _buildTimeBox(l10n.prayerFajr, fmt.format(pt.fajr),
                           next == Prayer.fajr),
                       const SizedBox(width: 8),
@@ -238,49 +190,6 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MosqueLocatorPlaceholder extends StatelessWidget {
-  const _MosqueLocatorPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Colors.grey[800],
-                image: const DecorationImage(
-                    image: NetworkImage(
-                        "https://tile.openstreetmap.org/12/2364/1529.png"),
-                    fit: BoxFit.cover,
-                    opacity: 0.6)),
-            child: const Center(
-              child: Text(
-                "Map Functionality Here", // Placeholder
-                style:
-                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text("Nearest Masjids", // Placeholder
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(height: 100),
-      ],
     );
   }
 }

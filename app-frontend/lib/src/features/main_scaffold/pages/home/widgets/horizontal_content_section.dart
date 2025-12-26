@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Added
+import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart'; // Added
 import 'package:al_faruk_app/src/features/main_scaffold/pages/book_detail_screen.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/iqra_library_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
@@ -162,7 +164,6 @@ class _HorizontalContentSectionState
                   ),
                   child: Stack(
                     children: [
-                      // Gradient Overlay
                       Positioned(
                         bottom: 0,
                         left: 0,
@@ -184,14 +185,21 @@ class _HorizontalContentSectionState
                           ),
                         ),
                       ),
-                      // Bookmark Icon
                       Positioned(
                         top: 4,
                         left: 4,
                         child: GestureDetector(
-                          onTap: () => ref
-                              .read(bookmarksProvider.notifier)
-                              .toggleBookmark(item),
+                          onTap: () {
+                            // CHECK AUTH STATUS
+                            final authState = ref.read(authControllerProvider);
+                            if (authState == AuthState.guest) {
+                              GuestPrompt.show(context, ref);
+                              return;
+                            }
+                            ref
+                                .read(bookmarksProvider.notifier)
+                                .toggleBookmark(item);
+                          },
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: const BoxDecoration(

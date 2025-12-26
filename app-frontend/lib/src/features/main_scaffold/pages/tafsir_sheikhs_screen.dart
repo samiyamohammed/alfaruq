@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/quran_models.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
@@ -52,10 +53,11 @@ class _TafsirSheikhsScreenState extends ConsumerState<TafsirSheikhsScreen> {
             child: Text("${l10n.error}: $e",
                 style: const TextStyle(color: Colors.white))),
         data: (languages) {
-          if (languages.isEmpty)
+          if (languages.isEmpty) {
             return Center(
                 child: Text(l10n.noSheikhsFound,
                     style: const TextStyle(color: Colors.white)));
+          }
 
           final currentLanguageId = _selectedLanguageId ??
               (languages.isNotEmpty ? languages.first.id : null);
@@ -126,10 +128,11 @@ class _TafsirSheikhsScreenState extends ConsumerState<TafsirSheikhsScreen> {
           child: Text("${l10n.error}: $e",
               style: const TextStyle(color: Colors.white))),
       data: (reciters) {
-        if (reciters.isEmpty)
+        if (reciters.isEmpty) {
           return Center(
               child: Text(l10n.noSheikhsFound,
                   style: const TextStyle(color: Colors.white54)));
+        }
 
         return ListView.separated(
           padding: const EdgeInsets.all(16),

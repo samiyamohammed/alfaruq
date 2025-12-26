@@ -12,6 +12,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
+import 'package:audio_session/audio_session.dart';
+
+final globalAudioPlayerProvider = Provider<AudioPlayer>((ref) {
+  final player = AudioPlayer();
+  return player;
+});
+
+final currentPlayingBookIdProvider = StateProvider<String?>((ref) => null);
 
 class IqraLibraryScreen extends ConsumerStatefulWidget {
   final int initialTabIndex;
@@ -36,9 +44,15 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
   void initState() {
     super.initState();
     _selectedTabIndex = widget.initialTabIndex;
+    _setupAudioSession();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startGenreAutoScroll();
     });
+  }
+
+  Future<void> _setupAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
   }
 
   void _startGenreAutoScroll() {
@@ -70,6 +84,8 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final feedAsync = ref.watch(feedContentProvider);
+    // Retrieve bookmarked IDs for the PDF grid
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
 
     return Scaffold(
       key: _scaffoldKey,
@@ -139,7 +155,7 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
               const SizedBox(height: 16),
               Expanded(
                 child: _selectedTabIndex == 0
-                    ? _buildPdfGrid(filteredBooks, l10n)
+                    ? _buildPdfGrid(filteredBooks, l10n, bookmarkedIds)
                     : _buildAudioList(filteredBooks, l10n),
               ),
             ],
@@ -227,14 +243,13 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
       itemCount: books.length,
       separatorBuilder: (c, i) => const SizedBox(height: 20),
       itemBuilder: (context, index) {
-        return _AudioBookTile(
-            book: books[index],
-            autoPlay: widget.targetedBookId == books[index].id);
+        return _AudioBookTile(book: books[index]);
       },
     );
   }
 
-  Widget _buildPdfGrid(List<FeedItem> books, AppLocalizations l10n) {
+  Widget _buildPdfGrid(
+      List<FeedItem> books, AppLocalizations l10n, Set<String> bookmarkedIds) {
     if (books.isEmpty)
       return Center(
           child: Text(l10n.noContentFound,
@@ -249,6 +264,8 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
       itemCount: books.length,
       itemBuilder: (context, index) {
         final book = books[index];
+        final bool isFav = bookmarkedIds.contains(book.id);
+
         return GestureDetector(
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => BookDetailScreen(book: book))),
@@ -256,13 +273,39 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white10),
-                      image: DecorationImage(
-                          image: NetworkImage(book.thumbnailUrl ?? ''),
-                          fit: BoxFit.cover)),
+                child: Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white10),
+                          image: DecorationImage(
+                              image: NetworkImage(book.thumbnailUrl ?? ''),
+                              fit: BoxFit.cover)),
+                    ),
+                    // Added Favorite Button overlay for PDF items
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () => ref
+                            .read(bookmarksProvider.notifier)
+                            .toggleBookmark(book),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.black38,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isFav ? Icons.favorite : Icons.favorite_border,
+                            color: isFav ? Colors.red : Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -283,236 +326,236 @@ class _IqraLibraryScreenState extends ConsumerState<IqraLibraryScreen> {
   }
 }
 
-class _AudioBookTile extends StatefulWidget {
+class _AudioBookTile extends ConsumerWidget {
   final FeedItem book;
-  final bool autoPlay;
-  const _AudioBookTile({required this.book, this.autoPlay = false});
+  const _AudioBookTile({required this.book});
 
-  @override
-  State<_AudioBookTile> createState() => _AudioBookTileState();
-}
+  Future<void> _handlePlay(
+      WidgetRef ref, AudioPlayer player, String? currentId) async {
+    final bool isThisBook = currentId == book.id;
 
-class _AudioBookTileState extends State<_AudioBookTile> {
-  final AudioPlayer _player = AudioPlayer();
-  bool _isExpanded = false;
-  double _playbackSpeed = 1.0;
-  bool _loadError = false;
+    if (isThisBook) {
+      player.playing ? await player.pause() : await player.play();
+    } else {
+      try {
+        await player.stop();
+        ref.read(currentPlayingBookIdProvider.notifier).state = book.id;
 
-  @override
-  void initState() {
-    super.initState();
-    _initAudio();
-  }
+        final source = AudioSource.uri(
+          Uri.parse(book.audioUrl!),
+          tag: MediaItem(
+            id: book.id,
+            album: "Al-Faruk Library",
+            title: book.title,
+            artist: book.authorName ?? "Unknown Narrator",
+            artUri: Uri.parse(book.thumbnailUrl ?? ''),
+          ),
+        );
 
-  Future<void> _initAudio() async {
-    if (widget.book.audioUrl == null || widget.book.audioUrl!.isEmpty) return;
-
-    try {
-      // 1. Prepare the source with background metadata
-      final audioSource = AudioSource.uri(
-        Uri.parse(widget.book.audioUrl!),
-        tag: MediaItem(
-          id: widget.book.id,
-          album: "Al-Faruk Library",
-          title: widget.book.title,
-          artist: widget.book.authorName ?? "Unknown Narrator",
-          artUri: Uri.parse(widget.book.thumbnailUrl ?? ''),
-        ),
-      );
-
-      // 2. Set source and wait for it to load
-      await _player.setAudioSource(audioSource);
-
-      // 3. Handle AutoPlay
-      if (widget.autoPlay && mounted) {
-        _player.play();
-      }
-    } catch (e) {
-      debugPrint("⛔ Audio Player Error: $e");
-      if (mounted) {
-        setState(() => _loadError = true);
+        await player.setAudioSource(source);
+        await player.play();
+      } catch (e) {
+        debugPrint("Audio Playback Error: $e");
       }
     }
   }
 
-  void _cycleSpeed() {
-    setState(() {
-      if (_playbackSpeed == 1.0)
-        _playbackSpeed = 1.25;
-      else if (_playbackSpeed == 1.25)
-        _playbackSpeed = 1.5;
-      else if (_playbackSpeed == 1.5)
-        _playbackSpeed = 2.0;
-      else
-        _playbackSpeed = 1.0;
-    });
-    _player.setSpeed(_playbackSpeed);
-    HapticFeedback.selectionClick();
-  }
-
   @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final player = ref.watch(globalAudioPlayerProvider);
+    final currentBookId = ref.watch(currentPlayingBookIdProvider);
+    final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
+    final bool isFav = bookmarkedIds.contains(book.id);
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF151E32),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: widget.autoPlay
-                ? const Color(0xFFCFB56C)
-                : Colors.white.withOpacity(0.05)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(widget.book.thumbnailUrl ?? '',
-                      width: 60, height: 85, fit: BoxFit.cover),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.book.title,
-                          maxLines: 1,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
-                      Text(widget.book.authorName ?? "Narrator",
-                          style: const TextStyle(
-                              color: Colors.white54, fontSize: 12)),
-                      const SizedBox(height: 12),
-
-                      // Progress Bar
-                      StreamBuilder<Duration?>(
-                        stream: _player.positionStream,
-                        builder: (context, snapshot) {
-                          final position = snapshot.data ?? Duration.zero;
-                          final duration = _player.duration ?? Duration.zero;
-                          return ProgressBar(
-                            progress: position,
-                            total: duration,
-                            buffered: _player.bufferedPosition,
-                            onSeek: (d) => _player.seek(d),
-                            barHeight: 4,
-                            baseBarColor: Colors.white10,
-                            progressBarColor: const Color(0xFFCFB56C),
-                            bufferedBarColor: Colors.white24,
-                            thumbColor: const Color(0xFFCFB56C),
-                            thumbRadius: 6,
-                            timeLabelTextStyle: const TextStyle(
-                                color: Colors.white54, fontSize: 10),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildSpeedButton(),
-                _buildMainControls(),
-                IconButton(
-                    icon: Icon(
-                        _isExpanded ? Icons.expand_less : Icons.expand_more,
-                        color: Colors.white54),
-                    onPressed: () =>
-                        setState(() => _isExpanded = !_isExpanded)),
-              ],
-            ),
-          ),
-          if (_isExpanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Text(widget.book.description,
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 13, height: 1.5)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeedButton() {
-    return GestureDetector(
-      onTap: _cycleSpeed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-            color: Colors.white10, borderRadius: BorderRadius.circular(4)),
-        child: Text("${_playbackSpeed}x",
-            style: const TextStyle(
-                color: Color(0xFFCFB56C),
-                fontWeight: FontWeight.bold,
-                fontSize: 12)),
-      ),
-    );
-  }
-
-  Widget _buildMainControls() {
-    if (_loadError) {
-      return const Icon(Icons.error_outline, color: Colors.redAccent);
-    }
-
-    return StreamBuilder<PlayerState>(
-      stream: _player.playerStateStream,
+    return StreamBuilder<SequenceState?>(
+      stream: player.sequenceStateStream,
       builder: (context, snapshot) {
-        final playerState = snapshot.data;
-        final processingState = playerState?.processingState;
-        final playing = playerState?.playing;
+        final mediaItem = snapshot.data?.currentSource?.tag as MediaItem?;
+        final bool isThisBookPlaying = mediaItem?.id == book.id;
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-                icon: const Icon(Icons.replay_10, color: Colors.white70),
-                onPressed: () => _player
-                    .seek(Duration(seconds: _player.position.inSeconds - 10))),
-            if (processingState == ProcessingState.loading ||
-                processingState == ProcessingState.buffering)
-              const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Padding(
-                      padding: EdgeInsets.all(12),
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Color(0xFFCFB56C))))
-            else if (playing != true)
-              IconButton(
-                  iconSize: 48,
-                  icon: const Icon(Icons.play_circle_filled,
-                      color: Color(0xFFCFB56C)),
-                  onPressed: _player.play)
-            else
-              IconButton(
-                  iconSize: 48,
-                  icon: const Icon(Icons.pause_circle_filled,
-                      color: Color(0xFFCFB56C)),
-                  onPressed: _player.pause),
-            IconButton(
-                icon: const Icon(Icons.forward_10, color: Colors.white70),
-                onPressed: () => _player
-                    .seek(Duration(seconds: _player.position.inSeconds + 10))),
-          ],
+        if (isThisBookPlaying && currentBookId != book.id) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(currentPlayingBookIdProvider.notifier).state = book.id;
+          });
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF151E32),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: isThisBookPlaying
+                    ? const Color(0xFFCFB56C)
+                    : Colors.white.withOpacity(0.05)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(book.thumbnailUrl ?? '',
+                          width: 60, height: 85, fit: BoxFit.cover),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(book.title,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16)),
+                          Text(book.authorName ?? "Narrator",
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 12)),
+                          const SizedBox(height: 12),
+                          if (isThisBookPlaying)
+                            StreamBuilder<Duration?>(
+                              stream: player.positionStream,
+                              builder: (context, snapshot) {
+                                final position = snapshot.data ?? Duration.zero;
+                                final duration =
+                                    player.duration ?? Duration.zero;
+                                return ProgressBar(
+                                  progress: position,
+                                  total: duration,
+                                  buffered: player.bufferedPosition,
+                                  onSeek: player.seek,
+                                  barHeight: 4,
+                                  baseBarColor: Colors.white10,
+                                  progressBarColor: const Color(0xFFCFB56C),
+                                  thumbColor: const Color(0xFFCFB56C),
+                                  thumbRadius: 6,
+                                  timeLabelTextStyle: const TextStyle(
+                                      color: Colors.white54, fontSize: 10),
+                                );
+                              },
+                            )
+                          else
+                            const SizedBox(
+                                height: 20,
+                                child: Divider(color: Colors.white10)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => ref
+                          .read(bookmarksProvider.notifier)
+                          .toggleBookmark(book),
+                      icon: Icon(
+                        isFav ? Icons.favorite : Icons.favorite_border,
+                        color: isFav ? Colors.red : Colors.white38,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildSpeedButton(player, isThisBookPlaying),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.replay_10,
+                              color: Colors.white70),
+                          onPressed: isThisBookPlaying
+                              ? () => player.seek(Duration(
+                                  seconds: player.position.inSeconds - 10))
+                              : null,
+                        ),
+                        StreamBuilder<PlayerState>(
+                          stream: player.playerStateStream,
+                          builder: (context, snapshot) {
+                            final playerState = snapshot.data;
+                            final playing = playerState?.playing ?? false;
+                            final processing = playerState?.processingState;
+
+                            bool showPause = isThisBookPlaying && playing;
+                            bool isLoading = isThisBookPlaying &&
+                                (processing == ProcessingState.loading ||
+                                    processing == ProcessingState.buffering);
+
+                            if (isLoading) {
+                              return const SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Color(0xFFCFB56C))));
+                            }
+
+                            return IconButton(
+                              iconSize: 48,
+                              icon: Icon(
+                                  showPause
+                                      ? Icons.pause_circle_filled
+                                      : Icons.play_circle_filled,
+                                  color: const Color(0xFFCFB56C)),
+                              onPressed: () =>
+                                  _handlePlay(ref, player, currentBookId),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.forward_10,
+                              color: Colors.white70),
+                          onPressed: isThisBookPlaying
+                              ? () => player.seek(Duration(
+                                  seconds: player.position.inSeconds + 10))
+                              : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 40),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
+  }
+
+  Widget _buildSpeedButton(AudioPlayer player, bool isActive) {
+    return StreamBuilder<double>(
+        stream: player.speedStream,
+        builder: (context, snapshot) {
+          final speed = snapshot.data ?? 1.0;
+          return GestureDetector(
+            onTap: isActive
+                ? () {
+                    double newSpeed = speed + 0.25;
+                    if (newSpeed > 2.0) newSpeed = 1.0;
+                    player.setSpeed(newSpeed);
+                    HapticFeedback.selectionClick();
+                  }
+                : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(4)),
+              child: Text("${speed}x",
+                  style: TextStyle(
+                      color:
+                          isActive ? const Color(0xFFCFB56C) : Colors.white24,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12)),
+            ),
+          );
+        });
   }
 }

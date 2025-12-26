@@ -123,9 +123,33 @@ class _YeneMoviesPageState extends ConsumerState<YeneMoviesPage>
         child: purchasesState.when(
           loading: () => const Center(
               child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
-          error: (err, stack) => const Center(
-              child: Text("Error Loading Purchases",
-                  style: TextStyle(color: Colors.white))),
+          // --- UPDATED ERROR HANDLING FOR GUESTS ---
+          error: (err, stack) {
+            // Check if the error is a 403 Forbidden (Guest user)
+            if (err is DioException && err.response?.statusCode == 403) {
+              return const GuestRestrictedScreen();
+            }
+
+            // Default Error View
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.error,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.refresh(myPurchasesProvider),
+                    child: const Text("Retry",
+                        style: TextStyle(color: Color(0xFFCFB56C))),
+                  )
+                ],
+              ),
+            );
+          },
           data: (allPurchases) {
             final movies = allPurchases
                 .where(
