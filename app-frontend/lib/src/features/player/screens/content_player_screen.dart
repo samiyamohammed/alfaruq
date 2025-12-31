@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
-import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Added for guest check
-import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart'; // Added for the popup
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart';
+import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart';
 import 'package:al_faruk_app/src/features/history/data/history_repository.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/logic/navigation_provider.dart';
 import 'package:al_faruk_app/src/features/payment/data/payment_controller.dart';
 import 'package:al_faruk_app/src/features/payment/screens/rental_options_sheet.dart';
+import 'package:al_faruk_app/src/features/player/logic/global_player_provider.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -63,6 +64,29 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     WakelockPlus.enable();
     _currentContentId = widget.contentId;
     ScreenProtector.preventScreenshotOn();
+
+    // Check if we are restoring from PiP to avoid restart
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final globalState = ref.read(globalPlayerProvider);
+      if (globalState.currentItem?.id == widget.contentId &&
+          (globalState.videoController != null ||
+              globalState.ytController != null)) {
+        _restoreFromGlobal();
+      }
+    });
+  }
+
+  void _restoreFromGlobal() {
+    final globalState = ref.read(globalPlayerProvider);
+    setState(() {
+      _videoController = globalState.videoController;
+      _chewieController = globalState.chewieController;
+      _ytController = globalState.ytController;
+      _isYouTubeMode = globalState.isYouTube;
+      _isPlayerInitialized = true;
+      _currentItemForHistory = globalState.currentItem;
+    });
+    _startHistoryTracking(_currentItemForHistory!);
   }
 
   @override
@@ -70,7 +94,13 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     WidgetsBinding.instance.removeObserver(this);
     _saveProgress();
     _historyTimer?.cancel();
-    _disposePlayer();
+
+    // Only dispose if we are NOT in floating mode
+    final isFloating = ref.read(globalPlayerProvider).isFloating;
+    if (!isFloating) {
+      _disposePlayer();
+    }
+
     WakelockPlus.disable();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     ScreenProtector.preventScreenshotOff();
@@ -109,6 +139,7 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     _videoController = null;
     _chewieController = null;
     _ytController = null;
+    ref.read(globalPlayerProvider.notifier).closePlayer();
   }
 
   void _startHistoryTracking(FeedItem currentItem) {
@@ -155,7 +186,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
 
   // --- INITIALIZE NATIVE PLAYER (MP4/HLS) ---
   Future<void> _initializePlayer(String videoUrl, FeedItem item) async {
-    _disposePlayer();
+    if (_isPlayerInitialized) return;
+
     if (mounted) {
       setState(() {
         _isPlayerInitialized = false;
@@ -186,6 +218,16 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
           bufferedColor: Colors.white24,
         ),
       );
+
+      // Sync with Global Manager
+      ref.read(globalPlayerProvider.notifier).setPlayer(
+            item: item,
+            related: widget.relatedContent,
+            video: _videoController,
+            chewie: _chewieController,
+            isYouTube: false,
+          );
+
       _startHistoryTracking(item);
       _videoController!.addListener(() {
         if (_isSeries &&
@@ -202,10 +244,11 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     }
   }
 
-  // --- INITIALIZE YOUTUBE PLAYER (NATIVE FIX FOR ERROR 152) ---
+  // --- INITIALIZE YOUTUBE PLAYER ---
   Future<void> _initializeYoutubePlayer(
       String youtubeUrl, FeedItem item) async {
-    _disposePlayer();
+    if (_isPlayerInitialized) return;
+
     if (mounted) {
       setState(() {
         _isPlayerInitialized = false;
@@ -230,9 +273,16 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
         ),
       );
 
+      // Sync with Global Manager
+      ref.read(globalPlayerProvider.notifier).setPlayer(
+            item: item,
+            related: widget.relatedContent,
+            yt: _ytController,
+            isYouTube: true,
+          );
+
       _startHistoryTracking(item);
 
-      // Handle completion for playlists
       _ytController!.addListener(() {
         if (_isSeries &&
             _ytController!.value.playerState == PlayerState.ended) {
@@ -250,7 +300,10 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
   void _playNextEpisode() async {
     await _saveProgress();
     if (_currentEpisodeIndex < _playlist.length - 1) {
-      setState(() => _currentEpisodeIndex = _currentEpisodeIndex + 1);
+      setState(() {
+        _currentEpisodeIndex = _currentEpisodeIndex + 1;
+        _isPlayerInitialized = false;
+      });
       _evaluateCurrentItem();
     }
   }
@@ -349,6 +402,7 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     final globalFeedState = ref.watch(feedContentProvider);
     final List<FeedItem> globalFeed = globalFeedState.valueOrNull ?? [];
     final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
+    final playerKey = ref.watch(globalPlayerProvider).playerKey;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B101D),
@@ -370,8 +424,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                   loading: () => const Center(
                       child:
                           CircularProgressIndicator(color: Color(0xFFCFB56C))),
-                  error: (e, s) => _buildMainContent(
-                      content, null, null, globalFeed, bookmarkedIds),
+                  error: (e, s) => _buildMainContent(content, null, null,
+                      globalFeed, bookmarkedIds, playerKey),
                   data: (parent) {
                     if (parent.parentId != null) {
                       final grandParentAsync =
@@ -380,17 +434,22 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                           loading: () => const Center(
                               child: CircularProgressIndicator(
                                   color: Color(0xFFCFB56C))),
-                          error: (e, s) => _buildMainContent(
-                              content, parent, null, globalFeed, bookmarkedIds),
-                          data: (grandParent) => _buildMainContent(content,
-                              parent, grandParent, globalFeed, bookmarkedIds));
+                          error: (e, s) => _buildMainContent(content, parent,
+                              null, globalFeed, bookmarkedIds, playerKey),
+                          data: (grandParent) => _buildMainContent(
+                              content,
+                              parent,
+                              grandParent,
+                              globalFeed,
+                              bookmarkedIds,
+                              playerKey));
                     }
-                    return _buildMainContent(
-                        content, parent, null, globalFeed, bookmarkedIds);
+                    return _buildMainContent(content, parent, null, globalFeed,
+                        bookmarkedIds, playerKey);
                   },
                 ) ??
                 _buildMainContent(
-                    content, null, null, globalFeed, bookmarkedIds);
+                    content, null, null, globalFeed, bookmarkedIds, playerKey);
           },
         ),
       ),
@@ -402,7 +461,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
       FeedItem? parent,
       FeedItem? grandParent,
       List<FeedItem> globalFeed,
-      Set<String> bookmarkedIds) {
+      Set<String> bookmarkedIds,
+      Key? playerKey) {
     final FeedItem rootObj = grandParent ?? parent ?? content;
     final bool isFav = bookmarkedIds.contains(rootObj.id);
 
@@ -447,6 +507,7 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                 else if (_isPlayerInitialized)
                   _isYouTubeMode
                       ? YoutubePlayer(
+                          key: playerKey, // Helper to keep instance alive
                           controller: _ytController!,
                           showVideoProgressIndicator: true,
                           progressIndicatorColor: const Color(0xFFCFB56C),
@@ -456,11 +517,14 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                           ),
                         )
                       : (_chewieController != null
-                          ? Chewie(controller: _chewieController!)
+                          ? Chewie(
+                              key: playerKey, controller: _chewieController!)
                           : const CircularProgressIndicator(
                               color: Color(0xFFCFB56C)))
                 else
                   const CircularProgressIndicator(color: Color(0xFFCFB56C)),
+
+                // BACK BUTTON
                 Positioned(
                   top: 10,
                   left: 10,
@@ -474,6 +538,28 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                     ),
                   ),
                 ),
+
+                // PICTURE IN PICTURE BUTTON
+                if (_isPlayerInitialized &&
+                    !_isCurrentItemLocked &&
+                    !_isCurrentItemVideoMissing)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: GestureDetector(
+                      onTap: () {
+                        ref.read(globalPlayerProvider.notifier).switchToPiP();
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                            color: Colors.black45, shape: BoxShape.circle),
+                        child: const Icon(Icons.picture_in_picture_alt,
+                            color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -725,7 +811,6 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
         const SizedBox(height: 12),
         ElevatedButton(
           onPressed: () async {
-            // --- GUEST RESTRICTION LOGIC ---
             final authState = ref.read(authControllerProvider);
             if (authState == AuthState.guest) {
               GuestPrompt.show(context, ref);

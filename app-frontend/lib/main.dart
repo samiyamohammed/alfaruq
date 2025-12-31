@@ -4,11 +4,7 @@ import 'package:al_faruk_app/src/core/services/service_providers.dart';
 import 'package:al_faruk_app/src/core/theme/app_theme.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/auth/screens/auth_gate.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/iqra_library_screen.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/sheikh_detail_screen.dart';
-import 'package:al_faruk_app/src/features/main_scaffold/pages/book_detail_screen.dart';
-import 'package:al_faruk_app/src/core/models/quran_models.dart';
-import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
+import 'package:al_faruk_app/src/features/player/widgets/floating_player_overlay.dart'; // NEW IMPORT
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -22,7 +18,6 @@ import 'package:al_faruk_app/src/core/services/fcm_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/localization/afaan_oromo_localizations.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 const dailyNotificationTask = "scheduleDailyPrayerNotifications";
@@ -33,7 +28,6 @@ void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     DartPluginRegistrant.ensureInitialized();
     WidgetsFlutterBinding.ensureInitialized();
-    // RESTORED: Your original debug prints for background tasks
     debugPrint("🤠 [BG-TASK] Starting Background Isolate");
 
     try {
@@ -78,8 +72,6 @@ Future<void> _updateAndCacheLocation() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('latitude', position.latitude);
     await prefs.setDouble('longitude', position.longitude);
-    debugPrint(
-        "✅ Location cached: ${position.latitude}, ${position.longitude}");
   } catch (e) {
     debugPrint("Error caching location: $e");
   }
@@ -92,7 +84,6 @@ Future<void> main() async {
     await Firebase.initializeApp();
     await dotenv.load(fileName: "assets/.env");
 
-    // Initialize Background Audio Service with settings to keep it alive
     await JustAudioBackground.init(
       androidNotificationChannelId: 'com.alfaruk.app.audio',
       androidNotificationChannelName: 'Al-Faruk Audio Playback',
@@ -141,7 +132,6 @@ Future<void> _postStartupInit() async {
         ),
         existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
       );
-      debugPrint("✅ WorkManager Configured");
     } catch (e) {
       debugPrint("⚠️ WorkManager Error: $e");
     }
@@ -171,24 +161,10 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Handle Option B: When app resumes from background (Notification Click)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _handleNotificationNavigation();
-    }
-  }
-
-  void _handleNotificationNavigation() {
-    final player = ref.read(globalAudioPlayerProvider);
-    final mediaItem = player.sequenceState?.currentSource?.tag as MediaItem?;
-    
-    if (mediaItem != null && mediaItem.extras != null) {
-      final String? type = mediaItem.extras!['type'];
-      
-      // We check if the user is already on the page or needs to go there.
-      // This is a simplified jump-to-page logic using your navigator key.
-      debugPrint("🚀 Notification clicked: Navigating to $type content");
+      // Logic for notification click...
     }
   }
 
@@ -225,8 +201,12 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         Locale('am'),
         Locale('om'),
       ],
-      home: const AuthGate(),
       debugShowCheckedModeBanner: false,
+      // WRAPPING THE APP CONTENT WITH THE FLOATING OVERLAY
+      builder: (context, child) {
+        return FloatingPlayerOverlay(child: child!);
+      },
+      home: const AuthGate(),
     );
   }
 }

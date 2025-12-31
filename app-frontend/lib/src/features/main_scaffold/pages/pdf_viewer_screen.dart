@@ -148,7 +148,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    "Downloading Book... ${(_progress * 100).toInt()}%",
+                    "Opening Book… ${(_progress * 100).toInt()}%",
                     style: const TextStyle(color: Colors.white70),
                   ),
                 ],

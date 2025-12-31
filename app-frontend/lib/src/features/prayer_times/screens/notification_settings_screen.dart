@@ -1,5 +1,6 @@
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/services/service_providers.dart';
+import 'package:al_faruk_app/src/core/services/notification_service.dart'; // IMPORT THE SERVICE
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_drawer.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -23,6 +24,14 @@ class _NotificationSettingsScreenState
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  /// Triggers a refresh of the notification schedule in the system background
+  void _syncNotifications() {
+    // We wait briefly for the StateProvider to finish writing to SharedPreferences
+    Future.delayed(const Duration(milliseconds: 500), () {
+      NotificationService.scheduleDailyPrayerNotifications();
+    });
   }
 
   @override
@@ -61,9 +70,12 @@ class _NotificationSettingsScreenState
                     ),
                   ),
                   value: settings.remindersEnabled,
-                  onChanged: (value) => ref
-                      .read(settingsServiceProvider.notifier)
-                      .setRemindersEnabled(value),
+                  onChanged: (value) {
+                    ref
+                        .read(settingsServiceProvider.notifier)
+                        .setRemindersEnabled(value);
+                    _syncNotifications();
+                  },
                 ),
                 if (settings.remindersEnabled) ...[
                   const Divider(height: 1, color: Colors.white10),
@@ -89,9 +101,12 @@ class _NotificationSettingsScreenState
                       style: const TextStyle(color: Colors.white),
                     ),
                     value: settings.soundEnabled,
-                    onChanged: (value) => ref
-                        .read(settingsServiceProvider.notifier)
-                        .setSoundEnabled(value),
+                    onChanged: (value) {
+                      ref
+                          .read(settingsServiceProvider.notifier)
+                          .setSoundEnabled(value);
+                      _syncNotifications();
+                    },
                   ),
                   if (settings.soundEnabled)
                     Padding(
@@ -125,8 +140,12 @@ class _NotificationSettingsScreenState
                             ref
                                 .read(settingsServiceProvider.notifier)
                                 .setSelectedSound(newValue);
-                            // Preview play in app
+
+                            // 1. Preview play in app (Asset)
                             _audioPlayer.play(AssetSource('audio/$newValue'));
+
+                            // 2. Reschedule with the new sound (Native)
+                            _syncNotifications();
                           }
                         },
                       ),
@@ -139,9 +158,12 @@ class _NotificationSettingsScreenState
                       style: const TextStyle(color: Colors.white),
                     ),
                     value: settings.vibrationEnabled,
-                    onChanged: (value) => ref
-                        .read(settingsServiceProvider.notifier)
-                        .setVibrationEnabled(value),
+                    onChanged: (value) {
+                      ref
+                          .read(settingsServiceProvider.notifier)
+                          .setVibrationEnabled(value);
+                      _syncNotifications();
+                    },
                   ),
                 ]
               ],

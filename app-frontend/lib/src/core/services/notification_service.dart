@@ -16,36 +16,20 @@ class NotificationService {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  // Helper to ensure timezone is never null
   static Future<void> _ensureTimezoneInitialized() async {
     try {
-      // Accessing tz.local throws the error if not set.
-      // We check it inside a try block.
       tz.local;
     } catch (_) {
       tz.initializeTimeZones();
       try {
-        // FIX: Capture as dynamic or TimezoneInfo to handle the object return
         final timezoneResult = await FlutterTimezone.getLocalTimezone();
-
-        // Access the 'name' property if it's a TimezoneInfo object,
-        // or use it directly if it's already a String.
-        String rawTimeZone;
-        if (timezoneResult is String) {
-          rawTimeZone = timezoneResult as String;
-        } else {
-          // Newer versions return a TimezoneInfo object which has a .name field
-          rawTimeZone = timezoneResult.toString();
-          // If the above still fails, use: rawTimeZone = (timezoneResult as dynamic).name;
-        }
+        String rawTimeZone = timezoneResult.toString();
 
         if (rawTimeZone.contains('(')) {
           rawTimeZone = rawTimeZone.split('(')[1].split(',')[0];
         }
-
         tz.setLocalLocation(tz.getLocation(rawTimeZone));
       } catch (e) {
-        // Fallback to UTC if native lookup fails
         tz.setLocalLocation(tz.getLocation('UTC'));
       }
     }
@@ -59,21 +43,42 @@ class NotificationService {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
     await _notifications.initialize(settings);
+  }
 
-    await _createNotificationChannels();
+  /// EXPERT FIX: Dynamically creates a channel based on the sound name.
+  /// This bypasses Android's "Locked Sound" issue.
+  static Future<void> _createNotificationChannel(
+      String soundResourceName) async {
+    final String channelId = 'prayer_channel_$soundResourceName';
+
+    final AndroidNotificationChannel adhanChannel = AndroidNotificationChannel(
+      channelId,
+      'Prayer Reminders',
+      description: 'Notifications for prayer times.',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      sound: RawResourceAndroidNotificationSound(soundResourceName),
+    );
+
+    await _notifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(adhanChannel);
   }
 
   static Future<void> scheduleDailyPrayerNotifications() async {
     try {
-      // Ensure timezones are ready before doing anything else
       await _ensureTimezoneInitialized();
-
       final prefs = await SharedPreferences.getInstance();
 
       final bool isEnabled = prefs.getBool('remindersEnabled') ?? true;
+
+      // Always clear old ones before rescheduling
+      await _notifications.cancelAll();
+
       if (!isEnabled) {
-        await _notifications.cancelAll();
-        print("🔕 Reminders disabled. Cancelled all notifications.");
+        print("🔕 Reminders disabled. All notifications cleared.");
         return;
       }
 
@@ -81,22 +86,6 @@ class NotificationService {
     } catch (e) {
       print("❌ Error scheduling notifications: $e");
     }
-  }
-
-  static Future<void> _createNotificationChannels() async {
-    const AndroidNotificationChannel adhanChannel = AndroidNotificationChannel(
-      'prayer_time_channel',
-      'Prayer Time Notifications',
-      description: 'Channel for prayer time reminders.',
-      importance: Importance.max,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    await _notifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(adhanChannel);
   }
 
   static Future<void> _scheduleAllPrayerTimes(SharedPreferences prefs) async {
@@ -121,34 +110,37 @@ class NotificationService {
     }
 
     if (coordinates == null) {
-      print("⚠️ No coordinates available. Cannot schedule prayer times.");
-      return;
+      print("⚠️ No coordinates found. Using fallback coordinates.");
+      coordinates = Coordinates(9.03, 38.74); // Default to Addis Ababa
     }
 
-    // Read Settings
+    // Read latest settings
     final bool isSoundEnabled = prefs.getBool('soundEnabled') ?? true;
     final bool isVibrationEnabled = prefs.getBool('vibrationEnabled') ?? true;
-
     final String selectedSoundRaw =
         prefs.getString('selectedSound') ?? 'adhan.mp3';
+
+    // Convert 'adhan.mp3' -> 'adhan'
     final String soundResourceName = selectedSoundRaw.split('.').first;
+
+    // Register the channel for this specific sound
+    await _createNotificationChannel(soundResourceName);
 
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
-        'prayer_time_channel',
-        'Prayer Time Notifications',
-        channelDescription: 'Channel for prayer time reminders.',
+        'prayer_channel_$soundResourceName', // Must match the channel created above
+        'Prayer Reminders',
+        channelDescription: 'Notifications for prayer times.',
         importance: Importance.max,
         priority: Priority.high,
-        fullScreenIntent: true,
         enableVibration: isVibrationEnabled,
+        playSound: isSoundEnabled,
         sound: isSoundEnabled
             ? RawResourceAndroidNotificationSound(soundResourceName)
             : null,
       ),
     );
 
-    // Calculate Prayers
     final now = tz.TZDateTime.now(tz.local);
     final params = CalculationMethod.muslim_world_league.getParameters();
     params.madhab = Madhab.shafi;
@@ -163,8 +155,6 @@ class NotificationService {
       "Isha": prayerTimes.isha,
     };
 
-    await _notifications.cancelAll();
-
     for (var entry in prayersMap.entries) {
       final String prayerName = entry.key;
       tz.TZDateTime scheduledTime = tz.TZDateTime.from(entry.value, tz.local);
@@ -174,7 +164,7 @@ class NotificationService {
       }
 
       print(
-          "📅 Scheduling $prayerName at $scheduledTime with sound: $soundResourceName");
+          "📅 Scheduled $prayerName at $scheduledTime with sound resource: $soundResourceName");
 
       await _notifications.zonedSchedule(
         prayerName.hashCode,
