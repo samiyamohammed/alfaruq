@@ -1,6 +1,8 @@
 import 'package:al_faruk_app/src/features/notifications/logic/notification_provider.dart';
 import 'package:al_faruk_app/src/features/notifications/screens/notification_center_screen.dart';
 import 'package:al_faruk_app/src/features/search/screens/search_results_screen.dart';
+import 'package:al_faruk_app/src/features/search/screens/search_entry_screen.dart'; // NEW IMPORT
+import 'package:al_faruk_app/src/features/search/data/search_history_provider.dart'; // NEW IMPORT
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,8 +12,6 @@ class CustomAppBar extends ConsumerStatefulWidget
   final bool isSubPage;
   final String? title;
   final VoidCallback? onLeadingPressed;
-  // This callback is now optional, used if a specific page wants to handle search itself
-  // otherwise, we default to the global search screen.
   final ValueChanged<String>? onSearchChanged;
 
   const CustomAppBar({
@@ -31,6 +31,7 @@ class CustomAppBar extends ConsumerStatefulWidget
 }
 
 class _CustomAppBarState extends ConsumerState<CustomAppBar> {
+  // RESTORED: All original internal state variables
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
 
@@ -48,22 +49,40 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
     super.dispose();
   }
 
+  // RESTORED: Original toggle search logic
   void _toggleSearch() {
+    // EXPERT UX LOGIC:
+    // If the page doesn't have a local search listener (onSearchChanged is null),
+    // then tapping search should open the Full-Screen YouTube-style Search Entry page.
+    if (widget.onSearchChanged == null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const SearchEntryScreen()),
+      );
+      return;
+    }
+
+    // Otherwise, keep the original inline AppBar search behavior
     setState(() {
       _isSearching = !_isSearching;
       if (!_isSearching) {
         _searchController.clear();
-        // If local search handler exists, notify it
         widget.onSearchChanged?.call("");
       }
     });
   }
 
+  // RESTORED: Original search submission logic
   void _performGlobalSearch(String query) {
     if (query.trim().isEmpty) return;
 
+    // SAVE TO HISTORY (FRONTEND CACHE)
+    ref.read(searchHistoryProvider.notifier).addSearchTerm(query);
+
     // Close the search bar visual state
-    _toggleSearch();
+    setState(() {
+      _isSearching = false;
+      _searchController.clear();
+    });
 
     // Navigate to Results Screen
     Navigator.of(context).push(
@@ -111,18 +130,15 @@ class _CustomAppBarState extends ConsumerState<CustomAppBar> {
               controller: _searchController,
               autofocus: true,
               style: const TextStyle(color: Colors.white),
-              textInputAction: TextInputAction.search, // Show 'Search' button
+              textInputAction: TextInputAction.search,
               onSubmitted: (value) {
                 if (widget.onSearchChanged != null) {
-                  // Local page override
                   widget.onSearchChanged!(value);
                 } else {
-                  // Global Search
                   _performGlobalSearch(value);
                 }
               },
               onChanged: (value) {
-                // Keep local listeners updated if they exist
                 if (widget.onSearchChanged != null) {
                   widget.onSearchChanged!(value);
                 }

@@ -30,16 +30,20 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
+        // Attempt to request if denied (optional, based on your UX flow)
         return null;
       }
 
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+      );
       final myCoordinates = Coordinates(position.latitude, position.longitude);
       final params = CalculationMethod.muslim_world_league.getParameters();
       params.madhab = Madhab.shafi;
 
       return PrayerTimes.today(myCoordinates, params);
     } catch (e) {
+      debugPrint("Error fetching prayer times: $e");
       return null;
     }
   }
@@ -60,30 +64,43 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
           ref.read(bottomNavIndexProvider.notifier).state = 0;
         },
       ),
-      body: Column(
-        children: [
-          // 1. Prayer Times Card (Essential Info at the top)
-          _buildPrayerTimesCard(l10n),
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          final bool isLandscape = orientation == Orientation.landscape;
 
-          // 2. Main Content: Qibla Finder (Now the primary feature)
-          const Expanded(
-            child: QiblahCompassView(),
-          ),
-        ],
+          return Column(
+            children: [
+              // 1. Prayer Times Section (Responsive)
+              // If in landscape, we limit the height to ensure the compass fits
+              _buildPrayerTimesSection(l10n, isLandscape),
+
+              // 2. Main Content: Qibla Finder
+              Expanded(
+                child: Container(
+                  // Ensure minimum space for the compass widget
+                  constraints: const BoxConstraints(minHeight: 200),
+                  child: const QiblahCompassView(),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildPrayerTimesCard(AppLocalizations l10n) {
+  Widget _buildPrayerTimesSection(AppLocalizations l10n, bool isLandscape) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      width: double.infinity,
+      margin: EdgeInsets.fromLTRB(16, 16, 16, isLandscape ? 4 : 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF151E32),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white10),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -93,27 +110,35 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
               Text(
                 l10n.todaysPrayerTimes,
                 style: const TextStyle(
-                    color: Color(0xFFCFB56C), fontWeight: FontWeight.bold),
+                  color: Color(0xFFCFB56C),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           FutureBuilder<PrayerTimes?>(
             future: _prayerTimesFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: CircularProgressIndicator(color: Color(0xFFCFB56C)),
+                return const SizedBox(
+                  height: 60,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFCFB56C),
+                      strokeWidth: 2,
+                    ),
+                  ),
                 );
               }
 
               if (!snapshot.hasData || snapshot.data == null) {
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Text(
                     "Enable location to see prayer times",
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 );
               }
@@ -122,35 +147,90 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
               final fmt = DateFormat("hh:mm a");
               final next = pt.nextPrayer();
 
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      _buildTimeBox(l10n.prayerFajr, fmt.format(pt.fajr),
-                          next == Prayer.fajr),
-                      const SizedBox(width: 8),
-                      _buildTimeBox(l10n.prayerSunrise, fmt.format(pt.sunrise),
-                          next == Prayer.sunrise),
-                      const SizedBox(width: 8),
-                      _buildTimeBox(l10n.prayerDhuhr, fmt.format(pt.dhuhr),
-                          next == Prayer.dhuhr),
-                    ],
+              // Helper data list for clean mapping
+              final List<Map<String, dynamic>> prayers = [
+                {
+                  'label': l10n.prayerFajr,
+                  'time': fmt.format(pt.fajr),
+                  'isNext': next == Prayer.fajr
+                },
+                {
+                  'label': l10n.prayerSunrise,
+                  'time': fmt.format(pt.sunrise),
+                  'isNext': next == Prayer.sunrise
+                },
+                {
+                  'label': l10n.prayerDhuhr,
+                  'time': fmt.format(pt.dhuhr),
+                  'isNext': next == Prayer.dhuhr
+                },
+                {
+                  'label': l10n.prayerAsr,
+                  'time': fmt.format(pt.asr),
+                  'isNext': next == Prayer.asr
+                },
+                {
+                  'label': l10n.prayerMaghrib,
+                  'time': fmt.format(pt.maghrib),
+                  'isNext': next == Prayer.maghrib
+                },
+                {
+                  'label': l10n.prayerIsha,
+                  'time': fmt.format(pt.isha),
+                  'isNext': next == Prayer.isha
+                },
+              ];
+
+              if (isLandscape) {
+                // LANDSCAPE: Use a horizontal scrollable row to save vertical height
+                return SizedBox(
+                  height: 65,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: prayers.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final p = prayers[index];
+                      return SizedBox(
+                        width: 110,
+                        child:
+                            _buildTimeBox(p['label'], p['time'], p['isNext']),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildTimeBox(l10n.prayerAsr, fmt.format(pt.asr),
-                          next == Prayer.asr),
-                      const SizedBox(width: 8),
-                      _buildTimeBox(l10n.prayerMaghrib, fmt.format(pt.maghrib),
-                          next == Prayer.maghrib),
-                      const SizedBox(width: 8),
-                      _buildTimeBox(l10n.prayerIsha, fmt.format(pt.isha),
-                          next == Prayer.isha),
-                    ],
-                  ),
-                ],
-              );
+                );
+              } else {
+                // PORTRAIT: Original 2-row layout
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        _buildTimeBox(prayers[0]['label'], prayers[0]['time'],
+                            prayers[0]['isNext']),
+                        const SizedBox(width: 8),
+                        _buildTimeBox(prayers[1]['label'], prayers[1]['time'],
+                            prayers[1]['isNext']),
+                        const SizedBox(width: 8),
+                        _buildTimeBox(prayers[2]['label'], prayers[2]['time'],
+                            prayers[2]['isNext']),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildTimeBox(prayers[3]['label'], prayers[3]['time'],
+                            prayers[3]['isNext']),
+                        const SizedBox(width: 8),
+                        _buildTimeBox(prayers[4]['label'], prayers[4]['time'],
+                            prayers[4]['isNext']),
+                        const SizedBox(width: 8),
+                        _buildTimeBox(prayers[5]['label'], prayers[5]['time'],
+                            prayers[5]['isNext']),
+                      ],
+                    ),
+                  ],
+                );
+              }
             },
           ),
         ],
@@ -160,31 +240,40 @@ class _KhadimPageState extends ConsumerState<KhadimPage> {
 
   Widget _buildTimeBox(String label, String time, bool isNext) {
     return Expanded(
+      flex: isNext
+          ? 1
+          : 0, // Placeholder to avoid constraint issues in flexible rows
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: const Color(0xFF0B101D),
-          borderRadius: BorderRadius.circular(6),
-          border: isNext
-              ? Border.all(color: const Color(0xFFCFB56C), width: 1)
-              : Border.all(color: Colors.transparent),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isNext ? const Color(0xFFCFB56C) : Colors.transparent,
+            width: 1.2,
+          ),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: isNext ? const Color(0xFFCFB56C) : Colors.white70,
-                fontSize: 12,
+                color: isNext ? const Color(0xFFCFB56C) : Colors.white60,
+                fontSize: 10,
+                fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               time,
+              maxLines: 1,
               style: TextStyle(
                 color: isNext ? const Color(0xFFCFB56C) : Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 13,
               ),
             ),
           ],

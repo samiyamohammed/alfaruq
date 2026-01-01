@@ -18,6 +18,12 @@ class AppTheme {
     primaryColor: primaryColor,
     useMaterial3: true,
 
+    // EXPERT FIX: Eliminate flickering background state on click
+    // We set these to transparent so clicking a button doesn't create a grey/white flash
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
+
     // Color Scheme
     colorScheme: const ColorScheme.dark(
       primary: primaryColor,
@@ -56,17 +62,25 @@ class AppTheme {
       displayColor: whiteColor,
     ),
 
-    // Elevated Button Theme
+    // Elevated Button Theme (Adjusted for smooth non-flicker clicks)
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: primaryColor,
-        foregroundColor: Colors.black, // Text color on gold button
+        foregroundColor: Colors.black,
+        elevation: 0, // Lower elevation reduces visual "pop" flickering
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8.0),
         ),
         textStyle: GoogleFonts.inter(
           fontWeight: FontWeight.bold,
         ),
+      ),
+    ),
+
+    // Icon Button Fix (To stop the circular grey flicker)
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(
+        overlayColor: MaterialStateProperty.all(Colors.transparent),
       ),
     ),
   );

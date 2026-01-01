@@ -4,7 +4,6 @@ import 'package:al_faruk_app/src/core/models/quran_models.dart';
 import 'package:al_faruk_app/src/core/models/youtube_video_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/widgets/custom_app_bar.dart';
-// --- IMPORTS FOR ROUTING ---
 import 'package:al_faruk_app/src/features/main_scaffold/pages/book_detail_screen.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/news_feed_screen.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/sheikh_detail_screen.dart';
@@ -43,11 +42,11 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Fetch Languages for correct Reciter Navigation (Prevents 400 Error)
+    // 1. Fetch Languages for correct Reciter Navigation
     final languagesAsync = ref.watch(quranLanguagesProvider);
     final defaultLanguageId = languagesAsync.valueOrNull?.firstOrNull?.id;
 
-    // Watch Search Provider
+    // 2. Watch Search Provider based on query and filter
     final searchAsync = ref.watch(searchProvider(SearchArguments(
       query: widget.query,
       type: _selectedFilterCode,
@@ -121,6 +120,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                 ),
               ),
               data: (data) {
+                // If there is no result from API
                 if (data.isEmpty) {
                   return Center(
                     child: Column(
@@ -142,21 +142,21 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // 1. Content (Books, Movies, etc.)
+                    // 1. Content Grid (Books, Movies, etc.)
                     if (data.content.isNotEmpty) ...[
                       _buildSectionTitle("Library & Content"),
                       _buildContentGrid(context, data.content),
                       const SizedBox(height: 24),
                     ],
 
-                    // 2. YouTube
+                    // 2. YouTube Section
                     if (data.youtube.isNotEmpty) ...[
                       _buildSectionTitle("Videos"),
                       _buildYoutubeList(context, data.youtube),
                       const SizedBox(height: 24),
                     ],
 
-                    // 3. Reciters
+                    // 3. Quran Reciters Section
                     if (data.reciters.isNotEmpty) ...[
                       _buildSectionTitle("Quran Reciters"),
                       _buildRecitersList(
@@ -164,7 +164,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                       const SizedBox(height: 24),
                     ],
 
-                    // 4. News
+                    // 4. News Section
                     if (data.news.isNotEmpty) ...[
                       _buildSectionTitle("News & Articles"),
                       _buildNewsList(context, data.news),
@@ -194,7 +194,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
-  // --- 1. CONTENT GRID ---
+  // --- 1. CONTENT GRID BUILDER ---
   Widget _buildContentGrid(BuildContext context, List<FeedItem> items) {
     return GridView.builder(
       shrinkWrap: true,
@@ -285,7 +285,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
-  // --- 2. YOUTUBE LIST ---
+  // --- 2. YOUTUBE LIST BUILDER ---
   Widget _buildYoutubeList(BuildContext context, List<YoutubeVideo> videos) {
     return ListView.separated(
       shrinkWrap: true,
@@ -346,7 +346,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
-  // --- 3. RECITERS LIST (FIXED NAVIGATION) ---
+  // --- 3. RECITERS LIST BUILDER ---
   Widget _buildRecitersList(BuildContext context, List<QuranReciter> reciters,
       String? defaultLangId) {
     return SizedBox(
@@ -359,7 +359,6 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
           final reciter = reciters[index];
           return GestureDetector(
             onTap: () {
-              // Only navigate if we have a valid Language ID
               if (defaultLangId != null) {
                 Navigator.push(
                   context,
@@ -404,7 +403,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
-  // --- 4. NEWS LIST ---
+  // --- 4. NEWS LIST BUILDER ---
   Widget _buildNewsList(BuildContext context, List<NewsItem> news) {
     return ListView.separated(
       shrinkWrap: true,

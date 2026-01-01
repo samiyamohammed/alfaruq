@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:al_faruk_app/generated/app_localizations.dart';
 import 'package:al_faruk_app/src/core/models/feed_item_model.dart';
 import 'package:al_faruk_app/src/features/auth/data/auth_providers.dart';
-import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart'; // Added
-import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart'; // Added
+import 'package:al_faruk_app/src/features/auth/logic/auth_controller.dart';
+import 'package:al_faruk_app/src/features/common/utils/guest_prompt.dart';
 import 'package:al_faruk_app/src/features/main_scaffold/pages/home/widgets/trailer_player_screen.dart';
 import 'package:al_faruk_app/src/features/player/screens/content_player_screen.dart';
 import 'package:flutter/material.dart';
@@ -104,7 +104,6 @@ class _FeaturedCarouselState extends ConsumerState<FeaturedCarousel> {
                 isFav ? "Saved" : l10n.addList,
                 isFav ? const Color(0xFFCFB56C) : Colors.white,
                 () {
-                  // CHECK AUTH STATUS
                   final authState = ref.read(authControllerProvider);
                   if (authState == AuthState.guest) {
                     GuestPrompt.show(context, ref);
@@ -296,31 +295,47 @@ class HomePageStateHelper {
                     const SizedBox(height: 30),
                     Row(
                       children: [
+                        // GOLD BUTTON -> NOW WATCH TRAILER
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
                               Navigator.pop(context);
-                              Navigator.push(
+                              if (item.trailerUrl != null &&
+                                  item.trailerUrl!.isNotEmpty) {
+                                Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) => ContentPlayerScreen(
-                                          contentId: item.id)));
+                                    builder: (_) => TrailerPlayerScreen(
+                                        videoUrl: item.trailerUrl!),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          "Trailer not available for this item")),
+                                );
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFCFB56C),
-                                foregroundColor: Colors.black),
-                            child: Text(l10n.watchNow,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10))),
+                            child: const Text("WATCH TRAILER",
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(width: 10),
+                        // OUTLINED BUTTON -> STILL CLOSE
                         Expanded(
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
                                 side: const BorderSide(color: Colors.white24),
-                                foregroundColor: Colors.white),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10))),
                             child: const Text("CLOSE"),
                           ),
                         ),

@@ -19,7 +19,6 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
-  // 1. Create the Key
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static final List<Widget> _pages = <Widget>[
@@ -39,25 +38,38 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(bottomNavIndexProvider);
 
-    return Scaffold(
-      // 2. Assign the Key here
-      key: _scaffoldKey,
+    // EXPERT BACK BUTTON LOGIC:
+    // This intercepts the phone's hardware back button.
+    return PopScope(
+      canPop: selectedIndex == 0, // Only allow exit if on Home (Index 0)
+      onPopInvoked: (didPop) {
+        if (didPop) return;
 
-      extendBodyBehindAppBar: true,
+        // If user is on ANY other tab (1, 2, 3, 4, 5),
+        // return them to the Home tab instead of closing the app.
+        if (selectedIndex != 0) {
+          ref.read(bottomNavIndexProvider.notifier).state = 0;
+        }
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        extendBodyBehindAppBar: true,
 
-      // 3. Pass the Key to the AppBar
-      appBar:
-          selectedIndex == 0 ? CustomAppBar(scaffoldKey: _scaffoldKey) : null,
+        // App bar only visible on Home
+        appBar:
+            selectedIndex == 0 ? CustomAppBar(scaffoldKey: _scaffoldKey) : null,
 
-      endDrawer: const CustomDrawer(),
+        endDrawer: const CustomDrawer(),
 
-      body: IndexedStack(
-        index: selectedIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: CustomBottomNavBar(
-        currentIndex: selectedIndex,
-        onTap: _onItemTapped,
+        body: IndexedStack(
+          index: selectedIndex,
+          children: _pages,
+        ),
+
+        bottomNavigationBar: CustomBottomNavBar(
+          currentIndex: selectedIndex,
+          onTap: _onItemTapped,
+        ),
       ),
     );
   }

@@ -65,6 +65,13 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     _currentContentId = widget.contentId;
     ScreenProtector.preventScreenshotOn();
 
+    // Set allowed orientations for this screen
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     // Check if we are restoring from PiP to avoid restart
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final globalState = ref.read(globalPlayerProvider);
@@ -95,6 +102,9 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     _saveProgress();
     _historyTimer?.cancel();
 
+    // Reset orientation to Portrait only when leaving the screen
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
     // Only dispose if we are NOT in floating mode
     final isFloating = ref.read(globalPlayerProvider).isFloating;
     if (!isFloating) {
@@ -102,7 +112,6 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     }
 
     WakelockPlus.disable();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     ScreenProtector.preventScreenshotOff();
     super.dispose();
   }
@@ -203,6 +212,8 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
           savedSeconds < _videoController!.value.duration.inSeconds - 10) {
         await _videoController!.seekTo(Duration(seconds: savedSeconds));
       }
+
+      // EXPERT FIX: Explicitly handle orientations to prevent landscape stickiness
       _chewieController = ChewieController(
         videoPlayerController: _videoController!,
         autoPlay: true,
@@ -211,6 +222,13 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
             ? _videoController!.value.aspectRatio
             : 16 / 9,
         allowedScreenSleep: false,
+        // When user exits fullscreen, force back to portrait
+        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
+        // Allow landscape in fullscreen
+        deviceOrientationsOnEnterFullScreen: [
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
         materialProgressColors: ChewieProgressColors(
           playedColor: const Color(0xFFCFB56C),
           handleColor: Colors.white,
@@ -404,65 +422,142 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
     final bookmarkedIds = ref.watch(bookmarksProvider).value ?? {};
     final playerKey = ref.watch(globalPlayerProvider).playerKey;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B101D),
-      body: SafeArea(
-        child: contentAsync.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: Color(0xFFCFB56C))),
-          error: (err, stack) => Center(
+    return contentAsync.when(
+      loading: () => const Scaffold(
+          backgroundColor: Color(0xFF0B101D),
+          body: Center(
+              child: CircularProgressIndicator(color: Color(0xFFCFB56C)))),
+      error: (err, stack) => Scaffold(
+          backgroundColor: const Color(0xFF0B101D),
+          body: Center(
               child: Text("Error: $err",
-                  style: const TextStyle(color: Colors.white))),
-          data: (content) {
-            AsyncValue<FeedItem>? parentAsync;
-            if ((content.type == 'EPISODE' || content.type == 'SEASON') &&
-                content.parentId != null) {
-              parentAsync = ref.watch(feedDetailsProvider(content.parentId!));
-            }
+                  style: const TextStyle(color: Colors.white)))),
+      data: (content) {
+        AsyncValue<FeedItem>? parentAsync;
+        if ((content.type == 'EPISODE' || content.type == 'SEASON') &&
+            content.parentId != null) {
+          parentAsync = ref.watch(feedDetailsProvider(content.parentId!));
+        }
 
-            return parentAsync?.when(
-                  loading: () => const Center(
+        return parentAsync?.when(
+              loading: () => const Scaffold(
+                  backgroundColor: Color(0xFF0B101D),
+                  body: Center(
                       child:
-                          CircularProgressIndicator(color: Color(0xFFCFB56C))),
-                  error: (e, s) => _buildMainContent(content, null, null,
-                      globalFeed, bookmarkedIds, playerKey),
-                  data: (parent) {
-                    if (parent.parentId != null) {
-                      final grandParentAsync =
-                          ref.watch(feedDetailsProvider(parent.parentId!));
-                      return grandParentAsync.when(
-                          loading: () => const Center(
+                          CircularProgressIndicator(color: Color(0xFFCFB56C)))),
+              error: (e, s) => _playerLogicWrapper(
+                  content, null, null, globalFeed, bookmarkedIds, playerKey),
+              data: (parent) {
+                if (parent.parentId != null) {
+                  final grandParentAsync =
+                      ref.watch(feedDetailsProvider(parent.parentId!));
+                  return grandParentAsync.when(
+                      loading: () => const Scaffold(
+                          backgroundColor: Color(0xFF0B101D),
+                          body: Center(
                               child: CircularProgressIndicator(
-                                  color: Color(0xFFCFB56C))),
-                          error: (e, s) => _buildMainContent(content, parent,
-                              null, globalFeed, bookmarkedIds, playerKey),
-                          data: (grandParent) => _buildMainContent(
-                              content,
-                              parent,
-                              grandParent,
-                              globalFeed,
-                              bookmarkedIds,
-                              playerKey));
-                    }
-                    return _buildMainContent(content, parent, null, globalFeed,
-                        bookmarkedIds, playerKey);
-                  },
-                ) ??
-                _buildMainContent(
-                    content, null, null, globalFeed, bookmarkedIds, playerKey);
-          },
-        ),
-      ),
+                                  color: Color(0xFFCFB56C)))),
+                      error: (e, s) => _playerLogicWrapper(content, parent,
+                          null, globalFeed, bookmarkedIds, playerKey),
+                      data: (grandParent) => _playerLogicWrapper(
+                          content,
+                          parent,
+                          grandParent,
+                          globalFeed,
+                          bookmarkedIds,
+                          playerKey));
+                }
+                return _playerLogicWrapper(content, parent, null, globalFeed,
+                    bookmarkedIds, playerKey);
+              },
+            ) ??
+            _playerLogicWrapper(
+                content, null, null, globalFeed, bookmarkedIds, playerKey);
+      },
     );
   }
 
-  Widget _buildMainContent(
+  /// Handles Youtube fullscreen logic and Native rendering logic
+  Widget _playerLogicWrapper(
       FeedItem content,
       FeedItem? parent,
       FeedItem? grandParent,
       List<FeedItem> globalFeed,
       Set<String> bookmarkedIds,
       Key? playerKey) {
+    // YOUTUBE MODE
+    if (_isYouTubeMode && _ytController != null) {
+      return YoutubePlayerBuilder(
+        player: YoutubePlayer(
+          key: playerKey,
+          controller: _ytController!,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: const Color(0xFFCFB56C),
+          progressColors: const ProgressBarColors(
+            playedColor: Color(0xFFCFB56C),
+            handleColor: Colors.white,
+          ),
+        ),
+        builder: (context, player) {
+          return PopScope(
+            onPopInvoked: (didPop) => SystemChrome.setPreferredOrientations(
+                [DeviceOrientation.portraitUp]),
+            child: Scaffold(
+              backgroundColor: const Color(0xFF0B101D),
+              body: SafeArea(
+                child: _buildScrollableLayout(content, parent, grandParent,
+                    globalFeed, bookmarkedIds, playerKey, player),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // NATIVE MODE - EXPERT FIX: Wrapping in ValueListenableBuilder for texture persistence
+    // This prevents the PiP screen from being frozen until clicked.
+    Widget nativePlayer = const Center(
+        child: CircularProgressIndicator(color: Color(0xFFCFB56C)));
+
+    if (_isPlayerInitialized &&
+        _chewieController != null &&
+        _videoController != null) {
+      nativePlayer = ValueListenableBuilder(
+        valueListenable: _videoController!,
+        builder: (context, value, child) {
+          return Chewie(key: playerKey, controller: _chewieController!);
+        },
+      );
+    }
+
+    return PopScope(
+      onPopInvoked: (didPop) =>
+          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B101D),
+        body: SafeArea(
+          child: _buildScrollableLayout(
+            content,
+            parent,
+            grandParent,
+            globalFeed,
+            bookmarkedIds,
+            playerKey,
+            nativePlayer,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScrollableLayout(
+      FeedItem content,
+      FeedItem? parent,
+      FeedItem? grandParent,
+      List<FeedItem> globalFeed,
+      Set<String> bookmarkedIds,
+      Key? playerKey,
+      Widget playerWidget) {
     final FeedItem rootObj = grandParent ?? parent ?? content;
     final bool isFav = bookmarkedIds.contains(rootObj.id);
 
@@ -491,7 +586,16 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
       displayRelated = displayRelated.where((i) => i.id != content.id).toList();
     }
 
-    return Column(
+    // Detect if we are in fullscreen (Landscape)
+    bool isFullScreen = false;
+    if (_isYouTubeMode) {
+      isFullScreen = _ytController?.value.isFullScreen ?? false;
+    } else {
+      isFullScreen = _chewieController?.isFullScreen ?? false;
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero,
       children: [
         AspectRatio(
           aspectRatio: 16 / 9,
@@ -504,51 +608,35 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
                   _buildLockedUI(rootObj)
                 else if (_isCurrentItemVideoMissing)
                   _buildMissingVideoUI()
-                else if (_isPlayerInitialized)
-                  _isYouTubeMode
-                      ? YoutubePlayer(
-                          key: playerKey, // Helper to keep instance alive
-                          controller: _ytController!,
-                          showVideoProgressIndicator: true,
-                          progressIndicatorColor: const Color(0xFFCFB56C),
-                          progressColors: const ProgressBarColors(
-                            playedColor: Color(0xFFCFB56C),
-                            handleColor: Colors.white,
-                          ),
-                        )
-                      : (_chewieController != null
-                          ? Chewie(
-                              key: playerKey, controller: _chewieController!)
-                          : const CircularProgressIndicator(
-                              color: Color(0xFFCFB56C)))
                 else
-                  const CircularProgressIndicator(color: Color(0xFFCFB56C)),
-
-                // BACK BUTTON
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                          color: Colors.black45, shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_back, color: Colors.white),
+                  playerWidget,
+                if (!isFullScreen)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                            color: Colors.black45, shape: BoxShape.circle),
+                        child:
+                            const Icon(Icons.arrow_back, color: Colors.white),
+                      ),
                     ),
                   ),
-                ),
-
-                // PICTURE IN PICTURE BUTTON
                 if (_isPlayerInitialized &&
                     !_isCurrentItemLocked &&
-                    !_isCurrentItemVideoMissing)
+                    !_isCurrentItemVideoMissing &&
+                    !isFullScreen)
                   Positioned(
                     top: 10,
                     right: 10,
                     child: GestureDetector(
                       onTap: () {
+                        // Switch state in global provider
                         ref.read(globalPlayerProvider.notifier).switchToPiP();
+                        // Exit screen to let overlay take over GlobalKey
                         Navigator.pop(context);
                       },
                       child: Container(
@@ -564,62 +652,64 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
             ),
           ),
         ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                      child: Text(rootObj.title,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold))),
-                  IconButton(
-                    onPressed: () => ref
-                        .read(bookmarksProvider.notifier)
-                        .toggleBookmark(rootObj),
-                    icon: Icon(isFav ? Icons.favorite : Icons.favorite_border,
-                        color: isFav ? Colors.red : Colors.white),
-                  ),
-                ],
-              ),
-              if (_isSeries)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text("Playing: ${currentItem.title}",
-                      style: const TextStyle(
-                          color: Color(0xFFCFB56C), fontSize: 14)),
+        if (!isFullScreen)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                        child: Text(rootObj.title,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold))),
+                    IconButton(
+                      onPressed: () => ref
+                          .read(bookmarksProvider.notifier)
+                          .toggleBookmark(rootObj),
+                      icon: Icon(isFav ? Icons.favorite : Icons.favorite_border,
+                          color: isFav ? Colors.red : Colors.white),
+                    ),
+                  ],
                 ),
-              const SizedBox(height: 12),
-              Text(rootObj.description,
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 13, height: 1.4)),
-              const Divider(color: Colors.white12, height: 32),
-              if (_isSeries) ...[
-                const Text("Seasons & Episodes",
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
+                if (_isSeries)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text("Playing: ${currentItem.title}",
+                        style: const TextStyle(
+                            color: Color(0xFFCFB56C), fontSize: 14)),
+                  ),
                 const SizedBox(height: 12),
-                _buildSeasonsUI(rootObj, bookmarkedIds),
+                Text(rootObj.description,
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13, height: 1.4)),
                 const Divider(color: Colors.white12, height: 32),
+                if (_isSeries) ...[
+                  const Text("Seasons & Episodes",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _buildSeasonsUI(rootObj, bookmarkedIds),
+                  const Divider(color: Colors.white12, height: 32),
+                ],
+                if (displayRelated.isNotEmpty) ...[
+                  const Text("Related Content",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _buildRelatedList(displayRelated),
+                ]
               ],
-              if (displayRelated.isNotEmpty) ...[
-                const Text("Related Content",
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                _buildRelatedList(displayRelated),
-              ]
-            ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -816,7 +906,6 @@ class _ContentPlayerScreenState extends ConsumerState<ContentPlayerScreen>
               GuestPrompt.show(context, ref);
               return;
             }
-
             if (content.pricingTier == null) return;
             final result = await showModalBottomSheet(
                 context: context,
